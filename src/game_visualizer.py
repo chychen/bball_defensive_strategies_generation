@@ -9,7 +9,7 @@ from PIL import Image
 
 import time
 import matplotlib
-matplotlib.use('agg')
+matplotlib.use('agg') # run backend
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from matplotlib.patches import Circle, Rectangle, Arc

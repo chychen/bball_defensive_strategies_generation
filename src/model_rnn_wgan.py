@@ -59,8 +59,9 @@ class RNN_WGAN(object):
         self.__D_solver = (tf.train.AdamOptimizer(learning_rate=self.learning_rate, beta1=0.5)
                            .minimize(self.__D_loss, var_list=theta_D, global_step=self.__global_steps))
         # summary
-        self.__G_merged_op = tf.summary.scalar('loss', self.__G_loss)
-        self.__D_merged_op = tf.summary.scalar('loss', self.__D_loss)
+        # use self.__loss_V to draw both D's and G's loss on same plot
+        self.__loss_V = tf.Variable(0.0)
+        self.__merged_op = tf.summary.scalar('loss', self.__loss_V)
         # summary writer
         self.G_summary_writer = tf.summary.FileWriter(
             self.log_dir + 'G', graph=graph)
@@ -185,9 +186,10 @@ class RNN_WGAN(object):
         # TODO
         """
         feed_dict = {self.__z: latent_inputs}
-        summary, loss, global_steps, _ = sess.run(
-            [self.__G_merged_op, self.__G_loss, self.__global_steps,
+        loss, global_steps, _ = sess.run(
+            [self.__G_loss, self.__global_steps,
                 self.__G_solver], feed_dict=feed_dict)
+        summary = sess.run(self.__merged_op, feed_dict={self.__loss_V: loss})
         self.G_summary_writer.add_summary(
             summary, global_step=global_steps)
         return loss, global_steps
@@ -197,9 +199,10 @@ class RNN_WGAN(object):
         # TODO
         """
         feed_dict = {self.__z: latent_inputs, self.__X: real_data}
-        summary, loss, global_steps, _ = sess.run(
-            [self.__D_merged_op, self.__D_loss, self.__global_steps,
+        loss, global_steps, _ = sess.run(
+            [self.__D_loss, self.__global_steps,
                 self.__D_solver], feed_dict=feed_dict)
+        summary = sess.run(self.__merged_op, feed_dict={self.__loss_V: loss})
         self.D_summary_writer.add_summary(
             summary, global_step=global_steps)
         return loss, global_steps

@@ -1,5 +1,6 @@
 # log dir
 src/test_only/
+src/v*
 # Data
 *.npy
 data/

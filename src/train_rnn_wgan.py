@@ -115,14 +115,14 @@ def main(_):
                 saver.restore(sess, FLAGS.restore_path)
             # training
             for _ in range(FLAGS.total_epoches):
-                # time cost evaluation
-                start_time = time.time()
                 # shuffle the data
                 shuffled_indexes = np.random.permutation(real_data.shape[0])
                 real_data = real_data[shuffled_indexes]
 
                 batch_id = 0
                 while batch_id <= num_batches - FLAGS.num_train_D:
+                    # time cost evaluation
+                    start_time = time.time()
                     # Discriminator
                     D_loss_sum = 0.0
                     for _ in range(FLAGS.num_train_D):
