@@ -92,8 +92,10 @@ def plot_data(data, length, file_path=None, if_save=False, fps=96, dpi=48):
         print('!!!gif animation is saved!!!')
     else:
         plt.show()
-    print('!!!End!!!')
-
+        print('!!!End!!!')
+        
+    plt.cla()
+    plt.clf()
 
 def main():
     # load data and remove useless z dimension of players in data
@@ -101,6 +103,9 @@ def main():
         0, 1, 2, 3, 4, 6, 7, 9, 10, 12, 13, 15, 16, 18, 19, 21, 22, 24, 25, 27, 28, 30, 31]]
     plot_data(train_data, length=opt.length,
               file_path=opt.save_path, if_save=opt.save)
+    print(opt.length)
+    print(opt.save_path)
+    print(opt.save)
 
 
 if __name__ == '__main__':
