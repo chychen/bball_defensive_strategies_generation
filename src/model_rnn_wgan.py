@@ -45,13 +45,13 @@ class RNN_WGAN(object):
         self.__X = tf.placeholder(dtype=tf.float32, shape=[
             self.batch_size, self.seq_length, self.num_features], name='real_data')
         # model
-        G_sample = self.__G(self.__z, seq_len=None)
+        self.__G_sample = self.__G(self.__z, seq_len=None)
         D_real = self.__D(self.__X, seq_len=None)
-        D_fake = self.__D(G_sample, is_fake=True)
+        D_fake = self.__D(self.__G_sample, is_fake=True)
         # loss function
         self.__G_loss = self.__G_loss_fn(D_fake)
         self.__D_loss = self.__D_loss_fn(
-            self.__X, G_sample, D_fake, D_real, self.penalty_lambda)
+            self.__X, self.__G_sample, D_fake, D_real, self.penalty_lambda)
         # optimizer
         theta_G, theta_D = self.__get_var_list()
         self.__G_solver = (tf.train.AdamOptimizer(learning_rate=self.learning_rate, beta1=0.5)
@@ -59,11 +59,13 @@ class RNN_WGAN(object):
         self.__D_solver = (tf.train.AdamOptimizer(learning_rate=self.learning_rate, beta1=0.5)
                            .minimize(self.__D_loss, var_list=theta_D, global_step=self.__global_steps))
         # summary
-        self.__G_merged_op = tf.summary.scalar('G_loss', self.__G_loss)
-        self.__D_merged_op = tf.summary.scalar('D_loss', self.__D_loss)
+        self.__G_merged_op = tf.summary.scalar('loss', self.__G_loss)
+        self.__D_merged_op = tf.summary.scalar('loss', self.__D_loss)
         # summary writer
-        self.train_summary_writer = tf.summary.FileWriter(
-            self.log_dir + 'train', graph=graph)
+        self.G_summary_writer = tf.summary.FileWriter(
+            self.log_dir + 'G', graph=graph)
+        self.D_summary_writer = tf.summary.FileWriter(
+            self.log_dir + 'D', graph=graph)
 
     def __get_var_list(self):
         """
@@ -163,14 +165,14 @@ class RNN_WGAN(object):
         loss = -tf.reduce_mean(D_fake)
         return loss
 
-    def __D_loss_fn(self, __X, G_sample, D_fake, D_real, penalty_lambda):
+    def __D_loss_fn(self, __X, __G_sample, D_fake, D_real, penalty_lambda):
         """
         # TODO
         """
         # grad_pen, base on paper (Improved WGAN)
         epsilon = tf.random_uniform(
             [self.batch_size, 1, 1], minval=0.0, maxval=1.0)
-        __X_inter = epsilon * __X + (1.0 - epsilon) * G_sample
+        __X_inter = epsilon * __X + (1.0 - epsilon) * __G_sample
         grad = tf.gradients(self.__D(__X_inter, is_fake=True), [__X_inter])[0]
         # grad_norm = tf.sqrt(tf.reduce_sum((grad)**2, axis=1))
         grad_pen = tf.reduce_mean((tf.abs(grad) - 1.0)**2)
@@ -186,7 +188,7 @@ class RNN_WGAN(object):
         summary, loss, global_steps, _ = sess.run(
             [self.__G_merged_op, self.__G_loss, self.__global_steps,
                 self.__G_solver], feed_dict=feed_dict)
-        self.train_summary_writer.add_summary(
+        self.G_summary_writer.add_summary(
             summary, global_step=global_steps)
         return loss, global_steps
 
@@ -198,9 +200,17 @@ class RNN_WGAN(object):
         summary, loss, global_steps, _ = sess.run(
             [self.__D_merged_op, self.__D_loss, self.__global_steps,
                 self.__D_solver], feed_dict=feed_dict)
-        self.train_summary_writer.add_summary(
+        self.D_summary_writer.add_summary(
             summary, global_step=global_steps)
         return loss, global_steps
+
+    def generate(self, sess, latent_inputs):
+        """
+        # TODO
+        """
+        feed_dict = {self.__z: latent_inputs}
+        result = sess.run(self.__G_sample, feed_dict=feed_dict)
+        return result
 
 
 class TestingConfig(object):
