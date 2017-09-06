@@ -4,7 +4,6 @@ import argparse
 import os
 from os import listdir
 from os.path import join
-from PIL import Image
 # from tensorboard import SummaryWriter
 
 import time
