@@ -22,6 +22,8 @@ class RNN_WGAN(object):
         * output feedback to next input
         * dynamic lstm
         * multi gpus
+        * leaky relu
+        * batchnorm
     """
 
     def __init__(self, config, graph):
@@ -175,7 +177,7 @@ class RNN_WGAN(object):
             [self.batch_size, 1, 1], minval=0.0, maxval=1.0)
         __X_inter = epsilon * __X + (1.0 - epsilon) * __G_sample
         grad = tf.gradients(self.__D(__X_inter, is_fake=True), [__X_inter])[0]
-        # grad_norm = tf.sqrt(tf.reduce_sum((grad)**2, axis=1))
+        # TODO check: grad_norm = tf.sqrt(tf.reduce_sum((grad)**2, axis=1))
         grad_pen = tf.reduce_mean((tf.abs(grad) - 1.0)**2)
         loss = tf.reduce_mean(
             D_fake) - tf.reduce_mean(D_real) + penalty_lambda * grad_pen

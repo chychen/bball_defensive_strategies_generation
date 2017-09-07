@@ -120,6 +120,7 @@ def main(_):
                 real_data = real_data[shuffled_indexes]
 
                 batch_id = 0
+                # TODO sample z from normal-distribution than uniform-distribution
                 while batch_id <= num_batches - FLAGS.num_train_D:
                     # time cost evaluation
                     start_time = time.time()
@@ -164,15 +165,17 @@ def main(_):
 
 
 if __name__ == '__main__':
-    if os.path.exists(FLAGS.log_dir):
-        shutil.rmtree(FLAGS.log_dir)
-        print('rm -rf "%s" complete!' % FLAGS.log_dir)
-    if os.path.exists(FLAGS.checkpoints_dir):
-        shutil.rmtree(FLAGS.checkpoints_dir)
-        print('rm -rf "%s" complete!' % FLAGS.checkpoints_dir)
-    if os.path.exists(FLAGS.sample_dir):
-        shutil.rmtree(FLAGS.sample_dir)
-        print('rm -rf "%s" complete!' % FLAGS.sample_dir)
+    if FLAGS.restore_path is None:
+        # when not restore, remove follows for new training
+        if os.path.exists(FLAGS.log_dir):
+            shutil.rmtree(FLAGS.log_dir)
+            print('rm -rf "%s" complete!' % FLAGS.log_dir)
+        if os.path.exists(FLAGS.checkpoints_dir):
+            shutil.rmtree(FLAGS.checkpoints_dir)
+            print('rm -rf "%s" complete!' % FLAGS.checkpoints_dir)
+        if os.path.exists(FLAGS.sample_dir):
+            shutil.rmtree(FLAGS.sample_dir)
+            print('rm -rf "%s" complete!' % FLAGS.sample_dir)
     if not os.path.exists(FLAGS.checkpoints_dir):
         os.makedirs(FLAGS.checkpoints_dir)
     if not os.path.exists(FLAGS.sample_dir):
