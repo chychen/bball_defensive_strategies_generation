@@ -143,8 +143,8 @@ def main(_):
 
                 batch_id = 0
                 # uniform-distribution
-                while batch_id <= num_batches:
-                    if D_loss_mean > G_loss_mean * 0.7:
+                while batch_id < num_batches:
+                    if D_loss_mean > G_loss_mean * 0.7 and D_loss_mean <= 0 and G_loss_mean <= 0:
                         # Discriminator
                         batch_idx = batch_id * FLAGS.batch_size
                         real_data_batch = real_data[batch_idx:batch_idx +
@@ -153,7 +153,7 @@ def main(_):
                             sess, z_samples(), real_data_batch)
                         batch_id += 1
                         log_counter = +1
-                    elif D_loss_mean * 0.7 < G_loss_mean:
+                    elif D_loss_mean * 0.7 < G_loss_mean and D_loss_mean <= 0 and G_loss_mean <= 0:
                         # Generator
                         G_loss_mean, global_steps = model.G_step(
                             sess, z_samples())
