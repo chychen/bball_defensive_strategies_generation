@@ -41,8 +41,8 @@ tf.app.flags.DEFINE_integer('latent_dims', 11,
 # training parameters
 tf.app.flags.DEFINE_integer('total_epoches', 500,
                             "num of ephoches")
-tf.app.flags.DEFINE_integer('num_train_D', 1,
-                            "num of times of training D before train G")
+# tf.app.flags.DEFINE_integer('num_train_D', 1,
+#                             "num of times of training D before train G")
 tf.app.flags.DEFINE_integer('batch_size', 32,
                             "batch size")
 tf.app.flags.DEFINE_float('learning_rate', 1e-3,
@@ -53,6 +53,8 @@ tf.app.flags.DEFINE_integer('rnn_layers', 1,
                             "num of layers for rnn")
 tf.app.flags.DEFINE_integer('save_freq', 25,
                             "num of epoches to save model")
+tf.app.flags.DEFINE_integer('log_freq', 100,
+                            "num of steps to log")
 tf.app.flags.DEFINE_float('penalty_lambda', 10.0,
                           "regularization parameter of wGAN loss function")
 
@@ -64,7 +66,7 @@ class TrainingConfig(object):
 
     def __init__(self):
         self.total_epoches = FLAGS.total_epoches
-        self.num_train_D = FLAGS.num_train_D
+        # self.num_train_D = FLAGS.num_train_D
         self.batch_size = FLAGS.batch_size
         self.log_dir = FLAGS.log_dir
         self.checkpoints_dir = FLAGS.checkpoints_dir
@@ -74,6 +76,7 @@ class TrainingConfig(object):
         self.hidden_size = FLAGS.hidden_size
         self.rnn_layers = FLAGS.rnn_layers
         self.save_freq = FLAGS.save_freq
+        self.log_freq = FLAGS.log_freq
         self.seq_length = FLAGS.seq_length
         self.num_features = FLAGS.num_features
         self.latent_dims = FLAGS.latent_dims
@@ -81,7 +84,7 @@ class TrainingConfig(object):
 
     def show(self):
         print("total_epoches:", self.total_epoches)
-        print("num_train_D:", self.num_train_D)
+        # print("num_train_D:", self.num_train_D)
         print("batch_size:", self.batch_size)
         print("log_dir:", self.log_dir)
         print("checkpoints_dir:", self.checkpoints_dir)
@@ -91,6 +94,7 @@ class TrainingConfig(object):
         print("hidden_size:", self.hidden_size)
         print("rnn_layers:", self.rnn_layers)
         print("save_freq:", self.save_freq)
+        print("log_freq:", self.log_freq)
         print("seq_length:", self.seq_length)
         print("num_features:", self.num_features)
         print("latent_dims:", self.latent_dims)
@@ -127,38 +131,58 @@ def main(_):
             if FLAGS.restore_path is not None:
                 saver.restore(sess, FLAGS.restore_path)
             # training
-            for _ in range(FLAGS.total_epoches):
+            D_loss_mean = 0.0
+            G_loss_mean = 0.0
+            log_counter = 0
+            # to evaluate time cost
+            start_time = time.time()
+            for epoch_id in range(FLAGS.total_epoches):
                 # shuffle the data
                 shuffled_indexes = np.random.permutation(real_data.shape[0])
                 real_data = real_data[shuffled_indexes]
 
                 batch_id = 0
                 # uniform-distribution
-                while batch_id <= num_batches - FLAGS.num_train_D:
-                    # time cost evaluation
-                    start_time = time.time()
-                    # Discriminator
-                    D_loss_sum = 0.0
-                    for _ in range(FLAGS.num_train_D):
+                while batch_id <= num_batches:
+                    if D_loss_mean > G_loss_mean * 0.7:
+                        # Discriminator
+                        batch_idx = batch_id * FLAGS.batch_size
+                        real_data_batch = real_data[batch_idx:batch_idx +
+                                                    FLAGS.batch_size]
+                        D_loss_mean, global_steps = model.D_step(
+                            sess, z_samples(), real_data_batch)
+                        batch_id += 1
+                        log_counter = +1
+                    elif D_loss_mean * 0.7 < G_loss_mean:
+                        # Generator
+                        G_loss_mean, global_steps = model.G_step(
+                            sess, z_samples())
+                        log_counter = +1
+                    else:
                         batch_idx = batch_id * FLAGS.batch_size
                         # data
                         real_data_batch = real_data[batch_idx:batch_idx +
                                                     FLAGS.batch_size]
-                        D_loss, global_steps = model.D_step(
+                        D_loss_mean, global_steps = model.D_step(
                             sess, z_samples(), real_data_batch)
-                        D_loss_sum += D_loss
                         batch_id += 1
-                    # Generator
-                    G_loss, global_steps = model.G_step(sess, z_samples())
+                        log_counter = +1
+
+                        G_loss_mean, global_steps = model.G_step(
+                            sess, z_samples())
+                        log_counter = +1
+
                     # logging
-                    end_time = time.time()
-                    epoch_id = int(global_steps // num_batches)
-                    print("%d epoches, %d steps, mean D_loss: %f, mean G_loss: %f, time cost: %f(sec/batch)" %
-                          (epoch_id,
-                           global_steps,
-                           D_loss_sum / FLAGS.num_train_D,
-                           G_loss,
-                           (end_time - start_time) / FLAGS.num_train_D))
+                    if log_counter >= FLAGS.log_freq:
+                        end_time = time.time()
+                        log_counter = 0
+                        print("%d, epoches, %d steps, mean D_loss: %f, mean G_loss: %f, time cost: %f(sec)" %
+                              (epoch_id,
+                               global_steps,
+                               D_loss_mean,
+                               G_loss_mean,
+                               (end_time - start_time)))
+                        start_time = time.time()
                 # generate sample per epoch (one event, 300 frames)
                 samples = model.generate(sess, z_samples())
                 game_visualizer.plot_data(
