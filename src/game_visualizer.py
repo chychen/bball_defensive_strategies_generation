@@ -4,16 +4,15 @@ import argparse
 import os
 from os import listdir
 from os.path import join
-# from tensorboard import SummaryWriter
 
 import time
 import matplotlib
-matplotlib.use('agg') # run backend
+matplotlib.use('agg')  # run backend
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from matplotlib.patches import Circle, Rectangle, Arc
 
-
+# parameters
 parser = argparse.ArgumentParser(description='NBA Games visulization')
 parser.add_argument('--save', type=bool, default=False,
                     help='bool, if save as gif file')
@@ -24,14 +23,25 @@ parser.add_argument('--save_path', type=str, default='../data/ten_event.gif',
 parser.add_argument('--data_path', type=str,
                     default='../data/NBA-TEAM1.npy', help='string, path of target data')
 
-
 opt = parser.parse_args()
 
 
-def update_all(frame_id, player_circles, ball_circle, annotations, data, max_length=300):
+def update_all(frame_id, player_circles, ball_circle, annotations, data):
+    """ 
+    Inputs
+    ------
+    frame_id : int
+        automatically increased by 1
+    player_circles : list of pyplot.Circle
+        players' icon
+    ball_circle : list of pyplot.Circle
+        ball's icon
+    annotations : pyplot.axes.annotate
+        colors, texts, locations for ball and players
+    data : float, shape=[amount, length, 23]
+        23 = ball's xyz + 10 players's xy
     """
-    TODO
-    """
+    max_length = data.shape[1]
     # players
     for j, circle in enumerate(player_circles):
         circle.center = data[frame_id // max_length, frame_id %
@@ -42,20 +52,32 @@ def update_all(frame_id, player_circles, ball_circle, annotations, data, max_len
     ball_circle.center = data[frame_id // max_length, frame_id %
                               max_length, 0], data[frame_id // max_length, frame_id % max_length, 1]
     annotations[10].set_position(ball_circle.center)
-    return player_circles, ball_circle
-
+    return
 
 def plot_data(data, length, file_path=None, if_save=False, fps=96, dpi=48):
     """
-    TODO
+    Inputs
+    ------
+    data : float, shape=[amount, length, 23]
+        23 = ball's xyz + 10 players's xy
+    length : int
+        how long would you like to plot
+    file_path : str
+        where to save the animation
+    if_save : bool, optional
+        save as .gif file or not
+    fps : int, optional
+        frame per second
+    dpi : int, optional
+        dot per inch
+    Return
+    ------
     """
     court = plt.imread("../data/court.png")  # 500*939
 
     # 5 A-Team players + 5 B-Team players + 1 ball
     name_list = ['A1', 'A2', 'A3', 'A4',
                  'A5', 'B1', 'B2', 'B3', 'B4', 'B5', ' ']
-    # color = ['red', 'red', 'red', 'red', 'red', 'blue',
-    #          'blue', 'blue', 'blue', 'blue', 'yellow']
 
     # team A -> read circle, team B -> blue circle, ball -> small green circle
     player_circles = []
@@ -92,11 +114,16 @@ def plot_data(data, length, file_path=None, if_save=False, fps=96, dpi=48):
     else:
         plt.show()
         print('!!!End!!!')
-        
+
+    # clear content
     plt.cla()
     plt.clf()
 
-def main():
+
+def test():
+    """
+    test only
+    """
     # load data and remove useless z dimension of players in data
     train_data = np.load(opt.data_path)[:, :, [
         0, 1, 2, 3, 4, 6, 7, 9, 10, 12, 13, 15, 16, 18, 19, 21, 22, 24, 25, 27, 28, 30, 31]]
@@ -108,4 +135,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    test()
