@@ -1,4 +1,5 @@
 """
+modeling
 """
 from __future__ import absolute_import
 from __future__ import division
@@ -27,7 +28,21 @@ class RNN_WGAN(object):
     """
 
     def __init__(self, config, graph):
-        """
+        """ TO build up the computational graph
+        Inputs
+        ------
+        config : 
+            * batch_size : mini batch size
+            * log_dir : path to save training summary
+            * learning_rate : adam's learning rate
+            * hidden_size : number of hidden units in LSTM
+            * rnn_layers : number of stacked LSTM 
+            * seq_length : length of LSTM
+            * num_features : dimensions of input feature
+            * latent_dims : dimensions of latent feature
+            * penalty_lambda = gradient penalty's weight, ref from  paper of 'improved-wgan'
+        graph : 
+            tensorflow default graph
         """
         # hyper-parameters
         self.batch_size = config.batch_size
@@ -71,7 +86,7 @@ class RNN_WGAN(object):
             self.log_dir + 'D', graph=graph)
 
     def __get_var_list(self):
-        """
+        """ to get both Generator's and Discriminator's trainable variables
         """
         trainable_V = tf.trainable_variables()
         theta_G = []
@@ -90,7 +105,17 @@ class RNN_WGAN(object):
 
     def __G(self, inputs, seq_len=None):
         """
-        # TODO
+        Inputs
+        ------
+        inputs : float, shape=[batch, length, dims]
+            latent variables
+        seq_len : 
+            temparily not used
+        
+        Return
+        ------
+        result : float, shape=[batch, length, 23]
+            generative result (script)
         """
         with tf.variable_scope('G') as scope:
             # init
@@ -122,7 +147,17 @@ class RNN_WGAN(object):
 
     def __D(self, inputs, seq_len=None, is_fake=False):
         """
-        # TODO
+        Inputs
+        ------
+        inputs : float, shape=[batch, length, 23]
+            real(from data) or fake(from G)
+        seq_len : 
+            temparily not used
+        
+        Return
+        ------
+        decision : bool
+            real(from data) or fake(from G)
         """
         # unstack, axis=1 -> [batch, time, feature]
         inputs = tf.unstack(inputs, num=self.seq_length, axis=1)
@@ -159,59 +194,58 @@ class RNN_WGAN(object):
             decision = tf.reduce_mean(decisions, axis=1)
             print('decision', decision)
 
-            return output_list
+            return decision
 
     def __G_loss_fn(self, D_fake):
-        """
-        # TODO
+        """ G loss
         """
         loss = -tf.reduce_mean(D_fake)
         return loss
 
     def __D_loss_fn(self, __X, __G_sample, D_fake, D_real, penalty_lambda):
-        """
-        # TODO
+        """ D loss
         """
         # grad_pen, base on paper (Improved WGAN)
         epsilon = tf.random_uniform(
             [self.batch_size, 1, 1], minval=0.0, maxval=1.0)
         __X_inter = epsilon * __X + (1.0 - epsilon) * __G_sample
         grad = tf.gradients(self.__D(__X_inter, is_fake=True), [__X_inter])[0]
-        # TODO check: grad_norm = tf.sqrt(tf.reduce_sum((grad)**2, axis=1))
-        grad_pen = tf.reduce_mean((tf.abs(grad) - 1.0)**2)
+        # TODO check: grad_pen = tf.reduce_mean((tf.abs(grad) - 1.0)**2)
+        grad_norm = tf.sqrt(tf.reduce_sum((grad)**2, axis=1))
+        grad_pen = tf.reduce_mean((grad_norm - 1.0)**2)
+
         loss = tf.reduce_mean(
             D_fake) - tf.reduce_mean(D_real) + penalty_lambda * grad_pen
         return loss
 
     def G_step(self, sess, latent_inputs):
-        """
-        # TODO
+        """ train one batch on G
         """
         feed_dict = {self.__z: latent_inputs}
         loss, global_steps, _ = sess.run(
             [self.__G_loss, self.__global_steps,
                 self.__G_solver], feed_dict=feed_dict)
+        # log
         summary = sess.run(self.__merged_op, feed_dict={self.__loss_V: loss})
         self.G_summary_writer.add_summary(
             summary, global_step=global_steps)
         return loss, global_steps
 
     def D_step(self, sess, latent_inputs, real_data):
-        """
-        # TODO
+        """ train one batch on D
         """
         feed_dict = {self.__z: latent_inputs, self.__X: real_data}
         loss, global_steps, _ = sess.run(
             [self.__D_loss, self.__global_steps,
                 self.__D_solver], feed_dict=feed_dict)
+        # log
         summary = sess.run(self.__merged_op, feed_dict={self.__loss_V: loss})
         self.D_summary_writer.add_summary(
             summary, global_step=global_steps)
         return loss, global_steps
 
     def generate(self, sess, latent_inputs):
-        """
-        # TODO
+        """ to generate result
         """
         feed_dict = {self.__z: latent_inputs}
         result = sess.run(self.__G_sample, feed_dict=feed_dict)
@@ -238,6 +272,8 @@ class TestingConfig(object):
 
 
 def test():
+    """ testing only
+    """
     with tf.Graph().as_default() as g:
         config = TestingConfig()
         model = RNN_WGAN(config, graph=g)

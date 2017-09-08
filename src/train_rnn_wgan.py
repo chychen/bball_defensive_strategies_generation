@@ -1,3 +1,10 @@
+"""
+data url: http://140.113.210.14:6006/NBA/data/NBA-TEAM1.npy
+data description: 
+    event by envet, with 300 sequence for each. (about 75 seconds)
+    shape as [number of events, max sequence length, 33 dimensions(1 ball and 10 players x,y,z)]
+    save it under the relative path './data/' before training
+"""
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
@@ -90,6 +97,12 @@ class TrainingConfig(object):
         print("penalty_lambda:", self.penalty_lambda)
 
 
+def z_samples():
+    # TODO sample z from normal-distribution than
+    return np.random.uniform(
+        -1., 1., size=[FLAGS.batch_size, FLAGS.seq_length, FLAGS.latent_dims])
+
+
 def main(_):
     with tf.get_default_graph().as_default() as graph:
         # load data and remove useless z dimension of players in data
@@ -120,7 +133,7 @@ def main(_):
                 real_data = real_data[shuffled_indexes]
 
                 batch_id = 0
-                # TODO sample z from normal-distribution than uniform-distribution
+                # uniform-distribution
                 while batch_id <= num_batches - FLAGS.num_train_D:
                     # time cost evaluation
                     start_time = time.time()
@@ -131,16 +144,12 @@ def main(_):
                         # data
                         real_data_batch = real_data[batch_idx:batch_idx +
                                                     FLAGS.batch_size]
-                        z = np.random.uniform(
-                            -1., 1., size=[FLAGS.batch_size, FLAGS.seq_length, FLAGS.latent_dims])
                         D_loss, global_steps = model.D_step(
-                            sess, z, real_data_batch)
+                            sess, z_samples(), real_data_batch)
                         D_loss_sum += D_loss
                         batch_id += 1
                     # Generator
-                    z = np.random.uniform(
-                        -1., 1., size=[FLAGS.batch_size, FLAGS.seq_length, FLAGS.latent_dims])
-                    G_loss, global_steps = model.G_step(sess, z)
+                    G_loss, global_steps = model.G_step(sess, z_samples())
                     # logging
                     end_time = time.time()
                     epoch_id = int(global_steps // num_batches)
@@ -151,9 +160,7 @@ def main(_):
                            G_loss,
                            (end_time - start_time) / FLAGS.num_train_D))
                 # generate sample per epoch (one event, 300 frames)
-                z = np.random.uniform(
-                    -1., 1., size=[FLAGS.batch_size, FLAGS.seq_length, FLAGS.latent_dims])
-                samples = model.generate(sess, z)
+                samples = model.generate(sess, z_samples())
                 game_visualizer.plot_data(
                     samples, FLAGS.seq_length, file_path=FLAGS.sample_dir + str(epoch_id) + '.gif', if_save=True)
                 # save checkpoints
@@ -166,7 +173,7 @@ def main(_):
 
 if __name__ == '__main__':
     if FLAGS.restore_path is None:
-        # when not restore, remove follows for new training
+        # when not restore, remove follows (old) for new training
         if os.path.exists(FLAGS.log_dir):
             shutil.rmtree(FLAGS.log_dir)
             print('rm -rf "%s" complete!' % FLAGS.log_dir)
