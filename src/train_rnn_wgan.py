@@ -152,12 +152,12 @@ def main(_):
                         D_loss_mean, global_steps = model.D_step(
                             sess, z_samples(), real_data_batch)
                         batch_id += 1
-                        log_counter = +1
+                        log_counter += 1
                     elif D_loss_mean * 0.7 < G_loss_mean and D_loss_mean <= 0 and G_loss_mean <= 0:
                         # Generator
                         G_loss_mean, global_steps = model.G_step(
                             sess, z_samples())
-                        log_counter = +1
+                        log_counter += 1
                     else:
                         batch_idx = batch_id * FLAGS.batch_size
                         # data
@@ -166,11 +166,11 @@ def main(_):
                         D_loss_mean, global_steps = model.D_step(
                             sess, z_samples(), real_data_batch)
                         batch_id += 1
-                        log_counter = +1
+                        log_counter += 1
 
                         G_loss_mean, global_steps = model.G_step(
                             sess, z_samples())
-                        log_counter = +1
+                        log_counter += 1
 
                     # logging
                     if log_counter >= FLAGS.log_freq:
