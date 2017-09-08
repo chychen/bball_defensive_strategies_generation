@@ -32,7 +32,7 @@ tf.app.flags.DEFINE_string('data_path', '../data/NBA-TEAM1.npy',
 tf.app.flags.DEFINE_string('restore_path', None,
                            "path of saving model eg: checkpoints/model.ckpt-5")
 # input parameters
-tf.app.flags.DEFINE_integer('seq_length', 300,
+tf.app.flags.DEFINE_integer('seq_length', 100,
                             "the maximum length of one training data")
 tf.app.flags.DEFINE_integer('num_features', 23,
                             "3 (ball x y z) + 10 (players) * 2 (x and y)")
@@ -41,7 +41,7 @@ tf.app.flags.DEFINE_integer('latent_dims', 11,
 # training parameters
 tf.app.flags.DEFINE_integer('total_epoches', 500,
                             "num of ephoches")
-tf.app.flags.DEFINE_integer('num_train_D', 5,
+tf.app.flags.DEFINE_integer('num_train_D', 1,
                             "num of times of training D before train G")
 tf.app.flags.DEFINE_integer('batch_size', 32,
                             "batch size")
@@ -106,7 +106,7 @@ def z_samples():
 def main(_):
     with tf.get_default_graph().as_default() as graph:
         # load data and remove useless z dimension of players in data
-        real_data = np.load(FLAGS.data_path)[:, :, [
+        real_data = np.load(FLAGS.data_path)[:, :FLAGS.seq_length, [
             0, 1, 2, 3, 4, 6, 7, 9, 10, 12, 13, 15, 16, 18, 19, 21, 22, 24, 25, 27, 28, 30, 31]]
         print('real_data.shape', real_data.shape)
         # TODO data normalization
