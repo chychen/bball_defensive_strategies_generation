@@ -12,19 +12,6 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from matplotlib.patches import Circle, Rectangle, Arc
 
-# parameters
-parser = argparse.ArgumentParser(description='NBA Games visulization')
-parser.add_argument('--save', type=bool, default=False,
-                    help='bool, if save as gif file')
-parser.add_argument('--length', type=int, default=300,
-                    help='how many frames do you want to plot')
-parser.add_argument('--save_path', type=str, default='../data/ten_event.gif',
-                    help='string, path to save event animation')
-parser.add_argument('--data_path', type=str,
-                    default='../data/NBA-TEAM1.npy', help='string, path of target data')
-
-opt = parser.parse_args()
-
 
 def update_all(frame_id, player_circles, ball_circle, annotations, data):
     """ 
@@ -53,6 +40,7 @@ def update_all(frame_id, player_circles, ball_circle, annotations, data):
                               max_length, 0], data[frame_id // max_length, frame_id % max_length, 1]
     annotations[10].set_position(ball_circle.center)
     return
+
 
 def plot_data(data, length, file_path=None, if_save=False, fps=96, dpi=48):
     """
@@ -135,4 +123,16 @@ def test():
 
 
 if __name__ == '__main__':
+    # parameters
+    parser = argparse.ArgumentParser(description='NBA Games visulization')
+    parser.add_argument('--save', type=bool, default=False,
+                        help='bool, if save as gif file')
+    parser.add_argument('--length', type=int, default=300,
+                        help='how many frames do you want to plot')
+    parser.add_argument('--save_path', type=str, default='../data/ten_event.gif',
+                        help='string, path to save event animation')
+    parser.add_argument('--data_path', type=str,
+                        default='../data/NBA-TEAM1.npy', help='string, path of target data')
+
+    opt = parser.parse_args()
     test()

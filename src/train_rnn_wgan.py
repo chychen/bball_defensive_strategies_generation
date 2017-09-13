@@ -144,12 +144,35 @@ def main(_):
                 batch_id = 0
                 # uniform-distribution
                 while batch_id < num_batches:
-                    if D_loss_mean * 0.9 < G_loss_mean and D_loss_mean <= 0 and G_loss_mean <= 0:
-                        # Generator
-                        G_loss_mean, global_steps = model.G_step(
-                            sess, z_samples())
-                        log_counter += 1
-                    elif D_loss_mean > G_loss_mean * 0.9 and D_loss_mean <= 0 and G_loss_mean <= 0:
+                    if D_loss_mean <= 0 and G_loss_mean <= 0:
+                        if D_loss_mean * 0.9 < G_loss_mean:
+                            # Generator
+                            G_loss_mean, global_steps = model.G_step(
+                                sess, z_samples())
+                            log_counter += 1
+                        elif D_loss_mean > G_loss_mean * 0.9:
+                            # Discriminator
+                            batch_idx = batch_id * FLAGS.batch_size
+                            real_data_batch = real_data[batch_idx:batch_idx +
+                                                        FLAGS.batch_size]
+                            D_loss_mean, global_steps = model.D_step(
+                                sess, z_samples(), real_data_batch)
+                            batch_id += 1
+                            log_counter += 1
+                        else:
+                            batch_idx = batch_id * FLAGS.batch_size
+                            # data
+                            real_data_batch = real_data[batch_idx:batch_idx +
+                                                        FLAGS.batch_size]
+                            D_loss_mean, global_steps = model.D_step(
+                                sess, z_samples(), real_data_batch)
+                            batch_id += 1
+                            log_counter += 1
+
+                            G_loss_mean, global_steps = model.G_step(
+                                sess, z_samples())
+                            log_counter += 1
+                    elif D_loss_mean > 0:
                         # Discriminator
                         batch_idx = batch_id * FLAGS.batch_size
                         real_data_batch = real_data[batch_idx:batch_idx +
@@ -158,16 +181,8 @@ def main(_):
                             sess, z_samples(), real_data_batch)
                         batch_id += 1
                         log_counter += 1
-                    else:
-                        batch_idx = batch_id * FLAGS.batch_size
-                        # data
-                        real_data_batch = real_data[batch_idx:batch_idx +
-                                                    FLAGS.batch_size]
-                        D_loss_mean, global_steps = model.D_step(
-                            sess, z_samples(), real_data_batch)
-                        batch_id += 1
-                        log_counter += 1
-
+                    elif G_loss_mean > 0:
+                        # Generator
                         G_loss_mean, global_steps = model.G_step(
                             sess, z_samples())
                         log_counter += 1
@@ -182,17 +197,16 @@ def main(_):
                                D_loss_mean,
                                G_loss_mean,
                                (end_time - start_time)))
-                        start_time = time.time()
-                # generate sample per epoch (one event, 300 frames)
-                samples = model.generate(sess, z_samples())
-                game_visualizer.plot_data(
-                    samples, FLAGS.seq_length, file_path=FLAGS.sample_dir + str(epoch_id) + '.gif', if_save=True)
-                # save checkpoints
-                if (epoch_id % FLAGS.save_freq) == 0:
+                        start_time = time.time()  # save checkpoints
+                if (epoch_id % FLAGS.save_freq) == 0 or epoch_id == FLAGS.total_epoches - 1:
                     save_path = saver.save(
                         sess, FLAGS.checkpoints_dir + "model.ckpt",
                         global_step=global_steps)
                     print("Model saved in file: %s" % save_path)
+                    # plot generated sample
+                    samples = model.generate(sess, z_samples())
+                    game_visualizer.plot_data(
+                        samples, FLAGS.seq_length, file_path=FLAGS.sample_dir + str(global_steps) + '.gif', if_save=True)
 
 
 if __name__ == '__main__':
