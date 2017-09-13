@@ -36,18 +36,18 @@ tf.app.flags.DEFINE_integer('seq_length', 100,
                             "the maximum length of one training data")
 tf.app.flags.DEFINE_integer('num_features', 23,
                             "3 (ball x y z) + 10 (players) * 2 (x and y)")
-tf.app.flags.DEFINE_integer('latent_dims', 11,
+tf.app.flags.DEFINE_integer('latent_dims', 23,
                             "dimensions of latant variable")
 # training parameters
 tf.app.flags.DEFINE_integer('total_epoches', 500,
                             "num of ephoches")
 # tf.app.flags.DEFINE_integer('num_train_D', 1,
 #                             "num of times of training D before train G")
-tf.app.flags.DEFINE_integer('batch_size', 32,
+tf.app.flags.DEFINE_integer('batch_size', 64,
                             "batch size")
-tf.app.flags.DEFINE_float('learning_rate', 1e-3,
+tf.app.flags.DEFINE_float('learning_rate', 5e-5,
                           "learning rate")
-tf.app.flags.DEFINE_integer('hidden_size', 110,
+tf.app.flags.DEFINE_integer('hidden_size', 230,
                             "hidden size of LSTM")
 tf.app.flags.DEFINE_integer('rnn_layers', 1,
                             "num of layers for rnn")
@@ -144,7 +144,12 @@ def main(_):
                 batch_id = 0
                 # uniform-distribution
                 while batch_id < num_batches:
-                    if D_loss_mean > G_loss_mean * 0.7 and D_loss_mean <= 0 and G_loss_mean <= 0:
+                    if D_loss_mean * 0.9 < G_loss_mean and D_loss_mean <= 0 and G_loss_mean <= 0:
+                        # Generator
+                        G_loss_mean, global_steps = model.G_step(
+                            sess, z_samples())
+                        log_counter += 1
+                    elif D_loss_mean > G_loss_mean * 0.9 and D_loss_mean <= 0 and G_loss_mean <= 0:
                         # Discriminator
                         batch_idx = batch_id * FLAGS.batch_size
                         real_data_batch = real_data[batch_idx:batch_idx +
@@ -152,11 +157,6 @@ def main(_):
                         D_loss_mean, global_steps = model.D_step(
                             sess, z_samples(), real_data_batch)
                         batch_id += 1
-                        log_counter += 1
-                    elif D_loss_mean * 0.7 < G_loss_mean and D_loss_mean <= 0 and G_loss_mean <= 0:
-                        # Generator
-                        G_loss_mean, global_steps = model.G_step(
-                            sess, z_samples())
                         log_counter += 1
                     else:
                         batch_idx = batch_id * FLAGS.batch_size
