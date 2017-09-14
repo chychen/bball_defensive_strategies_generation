@@ -1,0 +1,36 @@
+v1: batch_size = 32
+
+tf.app.flags.DEFINE_string('log_dir', 'v1/log/',
+                           "summary directory")
+tf.app.flags.DEFINE_string('checkpoints_dir', 'v1/checkpoints/',
+                           "checkpoints dir")
+tf.app.flags.DEFINE_string('sample_dir', 'v1/sample/',
+                           "directory to save generative result")
+tf.app.flags.DEFINE_string('data_path', '../data/NBA-TEAM1.npy',
+                           "summary directory")
+tf.app.flags.DEFINE_string('restore_path', None,
+                           "path of saving model eg: checkpoints/model.ckpt-5")
+# input parameters
+tf.app.flags.DEFINE_integer('seq_length', 300,
+                            "the maximum length of one training data")
+tf.app.flags.DEFINE_integer('num_features', 23,
+                            "3 (ball x y z) + 10 (players) * 2 (x and y)")
+tf.app.flags.DEFINE_integer('latent_dims', 11,
+                            "dimensions of latant variable")
+# training parameters
+tf.app.flags.DEFINE_integer('total_epoches', 500,
+                            "num of ephoches")
+tf.app.flags.DEFINE_integer('num_train_D', 5,
+                            "num of times of training D before train G")
+tf.app.flags.DEFINE_integer('batch_size', 32,
+                            "batch size")
+tf.app.flags.DEFINE_float('learning_rate', 1e-3,
+                          "learning rate")
+tf.app.flags.DEFINE_integer('hidden_size', 110,
+                            "hidden size of LSTM")
+tf.app.flags.DEFINE_integer('rnn_layers', 1,
+                            "num of layers for rnn")
+tf.app.flags.DEFINE_integer('save_freq', 25,
+                            "num of epoches to save model")
+tf.app.flags.DEFINE_float('penalty_lambda', 10.0,
+                          "regularization parameter of wGAN loss function")

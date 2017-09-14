@@ -51,8 +51,10 @@ tf.app.flags.DEFINE_integer('hidden_size', 230,
                             "hidden size of LSTM")
 tf.app.flags.DEFINE_integer('rnn_layers', 1,
                             "num of layers for rnn")
-tf.app.flags.DEFINE_integer('save_freq', 25,
+tf.app.flags.DEFINE_integer('save_model_freq', 30,
                             "num of epoches to save model")
+tf.app.flags.DEFINE_integer('save_result_freq', 10,
+                            "num of epoches to save gif")
 tf.app.flags.DEFINE_integer('log_freq', 100,
                             "num of steps to log")
 tf.app.flags.DEFINE_float('penalty_lambda', 10.0,
@@ -75,7 +77,8 @@ class TrainingConfig(object):
         self.learning_rate = FLAGS.learning_rate
         self.hidden_size = FLAGS.hidden_size
         self.rnn_layers = FLAGS.rnn_layers
-        self.save_freq = FLAGS.save_freq
+        self.save_model_freq = FLAGS.save_model_freq
+        self.save_result_freq = FLAGS.save_result_freq
         self.log_freq = FLAGS.log_freq
         self.seq_length = FLAGS.seq_length
         self.num_features = FLAGS.num_features
@@ -93,7 +96,8 @@ class TrainingConfig(object):
         print("learning_rate:", self.learning_rate)
         print("hidden_size:", self.hidden_size)
         print("rnn_layers:", self.rnn_layers)
-        print("save_freq:", self.save_freq)
+        print("save_model_freq:", self.save_model_freq)
+        print("save_result_freq:", self.save_result_freq)
         print("log_freq:", self.log_freq)
         print("seq_length:", self.seq_length)
         print("num_features:", self.num_features)
@@ -130,6 +134,8 @@ def main(_):
             # restore model if exist
             if FLAGS.restore_path is not None:
                 saver.restore(sess, FLAGS.restore_path)
+                print('successfully restore model from checkpoint: %s' %
+                      (FLAGS.restore_path))
             # training
             D_loss_mean = 0.0
             G_loss_mean = 0.0
@@ -198,12 +204,15 @@ def main(_):
                                G_loss_mean,
                                (end_time - start_time)))
                         start_time = time.time()  # save checkpoints
-                if (epoch_id % FLAGS.save_freq) == 0 or epoch_id == FLAGS.total_epoches - 1:
+                        FLAGS.
+                # save model
+                if (epoch_id % FLAGS.save_model_freq) == 0 or epoch_id == FLAGS.total_epoches - 1:
                     save_path = saver.save(
                         sess, FLAGS.checkpoints_dir + "model.ckpt",
                         global_step=global_steps)
                     print("Model saved in file: %s" % save_path)
-                    # plot generated sample
+                # plot generated sample
+                if (epoch_id % FLAGS.save_result_freq) == 0 or epoch_id == FLAGS.total_epoches - 1:
                     samples = model.generate(sess, z_samples())
                     game_visualizer.plot_data(
                         samples, FLAGS.seq_length, file_path=FLAGS.sample_dir + str(global_steps) + '.gif', if_save=True)

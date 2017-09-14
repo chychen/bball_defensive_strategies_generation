@@ -113,13 +113,13 @@ def test():
     test only
     """
     # load data and remove useless z dimension of players in data
-    train_data = np.load(opt.data_path)[:, :, [
+    train_data = np.load(opt.data_path)[:, :100, [
         0, 1, 2, 3, 4, 6, 7, 9, 10, 12, 13, 15, 16, 18, 19, 21, 22, 24, 25, 27, 28, 30, 31]]
     plot_data(train_data, length=opt.length,
               file_path=opt.save_path, if_save=opt.save)
-    print(opt.length)
-    print(opt.save_path)
-    print(opt.save)
+    print('opt.save', opt.save)
+    print('opt.length', opt.length)
+    print('opt.save_path', opt.save_path)
 
 
 if __name__ == '__main__':
