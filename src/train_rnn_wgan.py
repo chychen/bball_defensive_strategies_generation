@@ -204,7 +204,6 @@ def main(_):
                                G_loss_mean,
                                (end_time - start_time)))
                         start_time = time.time()  # save checkpoints
-                        FLAGS.
                 # save model
                 if (epoch_id % FLAGS.save_model_freq) == 0 or epoch_id == FLAGS.total_epoches - 1:
                     save_path = saver.save(
