@@ -51,16 +51,20 @@ tf.app.flags.DEFINE_integer('hidden_size', 230,
                             "hidden size of LSTM")
 tf.app.flags.DEFINE_integer('rnn_layers', 2,
                             "num of layers for rnn")
+tf.app.flags.DEFINE_float('penalty_lambda', 10.0,
+                          "regularization parameter of wGAN loss function")
+tf.app.flags.DEFINE_bool('if_feed_previous', True,
+                         "if feed the previous output concated with current input")
+tf.app.flags.DEFINE_float('D_freeze_factor', 0.8,
+                          "when D loss * D_freeze_factor > G loss, freeze D!!!")
+# logging
 tf.app.flags.DEFINE_integer('save_model_freq', 30,
                             "num of epoches to save model")
 tf.app.flags.DEFINE_integer('save_result_freq', 5,
                             "num of epoches to save gif")
 tf.app.flags.DEFINE_integer('log_freq', 100,
                             "num of steps to log")
-tf.app.flags.DEFINE_float('penalty_lambda', 10.0,
-                          "regularization parameter of wGAN loss function")
-tf.app.flags.DEFINE_bool('if_feed_previous', True,
-                         "if feed the previous output concated with current input")
+
 
 class TrainingConfig(object):
     """
@@ -86,6 +90,8 @@ class TrainingConfig(object):
         self.latent_dims = FLAGS.latent_dims
         self.penalty_lambda = FLAGS.penalty_lambda
         self.if_feed_previous = FLAGS.if_feed_previous
+        self.D_freeze_factor = FLAGS.D_freeze_factor
+        
 
     def show(self):
         print("total_epoches:", self.total_epoches)
@@ -106,6 +112,7 @@ class TrainingConfig(object):
         print("latent_dims:", self.latent_dims)
         print("penalty_lambda:", self.penalty_lambda)
         print("if_feed_previous:", self.if_feed_previous)
+        print("D_freeze_factor:", self.D_freeze_factor)
 
 
 def z_samples():
@@ -154,30 +161,22 @@ def main(_):
                 # uniform-distribution
                 while batch_id < num_batches:
                     if D_loss_mean <= 0 and G_loss_mean <= 0:
-                        if D_loss_mean * 0.8 < G_loss_mean:
-                            # Generator
+                        if D_loss_mean * FLAGS.D_freeze_factor < G_loss_mean:
+                            # train G
                             G_loss_mean, global_steps = model.G_step(
                                 sess, z_samples())
                             log_counter += 1
-                        # elif D_loss_mean > G_loss_mean * 0.8:
-                        #     # Discriminator
-                        #     batch_idx = batch_id * FLAGS.batch_size
-                        #     real_data_batch = real_data[batch_idx:batch_idx +
-                        #                                 FLAGS.batch_size]
-                        #     D_loss_mean, global_steps = model.D_step(
-                        #         sess, z_samples(), real_data_batch)
-                        #     batch_id += 1
-                        #     log_counter += 1
                         else:
                             batch_idx = batch_id * FLAGS.batch_size
                             # data
                             real_data_batch = real_data[batch_idx:batch_idx +
                                                         FLAGS.batch_size]
+                            # train D
                             D_loss_mean, global_steps = model.D_step(
                                 sess, z_samples(), real_data_batch)
                             batch_id += 1
                             log_counter += 1
-
+                            # train G
                             G_loss_mean, global_steps = model.G_step(
                                 sess, z_samples())
                             log_counter += 1

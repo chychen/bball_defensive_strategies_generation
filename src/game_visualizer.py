@@ -42,7 +42,7 @@ def update_all(frame_id, player_circles, ball_circle, annotations, data):
     return
 
 
-def plot_data(data, length, file_path=None, if_save=False, fps=96, dpi=48):
+def plot_data(data, length, file_path=None, if_save=False, fps=4, dpi=48):
     """
     Inputs
     ------
@@ -113,12 +113,13 @@ def test():
     test only
     """
     # load data and remove useless z dimension of players in data
-    train_data = np.load(opt.data_path)[:, :100, [
+    train_data = np.load(opt.data_path)[:, :opt.seq_length, [
         0, 1, 2, 3, 4, 6, 7, 9, 10, 12, 13, 15, 16, 18, 19, 21, 22, 24, 25, 27, 28, 30, 31]]
     plot_data(train_data, length=opt.length,
               file_path=opt.save_path, if_save=opt.save)
     print('opt.save', opt.save)
     print('opt.length', opt.length)
+    print('opt.seq_length', opt.seq_length)
     print('opt.save_path', opt.save_path)
 
 
@@ -129,6 +130,8 @@ if __name__ == '__main__':
                         help='bool, if save as gif file')
     parser.add_argument('--length', type=int, default=300,
                         help='how many frames do you want to plot')
+    parser.add_argument('--seq_length', type=int, default=100,
+                        help='how long for each event')
     parser.add_argument('--save_path', type=str, default='../data/ten_event.gif',
                         help='string, path to save event animation')
     parser.add_argument('--data_path', type=str,
