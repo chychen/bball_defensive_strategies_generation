@@ -21,10 +21,11 @@ class RNN_WGAN(object):
         * data precision of float32/  float64
         * num of hidden units
         * output feedback to next input
-        * dynamic lstm
+        * dynamic lstm (diff length problems)
         * multi gpus
         * leaky relu
         * batchnorm
+        * gradient penalty
     """
 
     def __init__(self, config, graph):
@@ -128,7 +129,6 @@ class RNN_WGAN(object):
             # initial 'output' as generated_point in the begining.
             generated_point = tf.random_uniform(
                 shape=[self.batch_size, self.num_features], minval=0.0, maxval=1.0)
-            
             # model
             output_list = []
             for time_step in range(self.seq_length):
@@ -137,7 +137,7 @@ class RNN_WGAN(object):
                 input_ = inputs[:, time_step, :]
                 concat_values = [input_]
                 if self.if_feed_previous:
-                    concat_values.append(generated_point)  
+                    concat_values.append(generated_point)
                 input_ = tf.concat(values=concat_values, axis=1)
                 with tf.variable_scope('fully_connect_concat') as scope:
                     lstm_input = layers.fully_connected(
@@ -230,9 +230,9 @@ class RNN_WGAN(object):
         __X_inter = epsilon * __X + (1.0 - epsilon) * __G_sample
         grad = tf.gradients(self.__D(__X_inter, is_fake=True), [__X_inter])[0]
         # TODO check:
-        # grad_norm = tf.sqrt(tf.reduce_sum((grad)**2, axis=1))
-        # grad_pen = tf.reduce_mean((grad_norm - 1.0)**2)
-        grad_pen = tf.reduce_mean((tf.abs(grad) - 1.0)**2)
+        grad_norm = tf.sqrt(tf.reduce_sum((grad)**2, axis=1))
+        grad_pen = tf.reduce_mean((grad_norm - 1.0)**2)
+        # grad_pen = tf.reduce_mean((tf.abs(grad) - 1.0)**2)
 
         loss = tf.reduce_mean(
             D_fake) - tf.reduce_mean(D_real) + penalty_lambda * grad_pen

@@ -4,6 +4,8 @@ src/v*
 # Data
 *.npy
 data/
+# record
+.txt
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
