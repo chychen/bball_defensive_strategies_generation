@@ -54,6 +54,7 @@ class RNN_WGAN(object):
         self.num_features = config.num_features
         self.latent_dims = config.latent_dims
         self.penalty_lambda = config.penalty_lambda
+        self.if_feed_previous = config.if_feed_previous
         # steps
         self.__global_steps = tf.train.get_or_create_global_step(graph=graph)
         # data
@@ -111,7 +112,7 @@ class RNN_WGAN(object):
             latent variables
         seq_len : 
             temparily not used
-        
+
         Return
         ------
         result : float, shape=[batch, length, 23]
@@ -123,23 +124,41 @@ class RNN_WGAN(object):
                 [self.__lstm_cell() for _ in range(self.rnn_layers)])
             state = cell.zero_state(
                 batch_size=self.batch_size, dtype=tf.float32)
+            # as we feed the output as the input to the next, we 'invent' the
+            # initial 'output' as generated_point in the begining.
+            generated_point = tf.random_uniform(
+                shape=[self.batch_size, self.num_features], minval=0.0, maxval=1.0)
+            
             # model
             output_list = []
             for time_step in range(self.seq_length):
                 if time_step > 0:
                     tf.get_variable_scope().reuse_variables()
+                input_ = inputs[:, time_step, :]
+                concat_values = [input_]
+                if self.if_feed_previous:
+                    concat_values.append(generated_point)  
+                input_ = tf.concat(values=concat_values, axis=1)
+                with tf.variable_scope('fully_connect_concat') as scope:
+                    lstm_input = layers.fully_connected(
+                        inputs=input_,
+                        num_outputs=self.hidden_size,
+                        activation_fn=tf.nn.relu,
+                        weights_initializer=layers.xavier_initializer(),
+                        biases_initializer=tf.zeros_initializer(),
+                        scope=scope)
                 with tf.variable_scope('stack_lstm') as scope:
                     cell_out, state = cell(
-                        inputs=inputs[:, time_step, :], state=state, scope=scope)
-                with tf.variable_scope('fully_connect') as scope:
-                    fconnect = layers.fully_connected(
+                        inputs=lstm_input, state=state, scope=scope)
+                with tf.variable_scope('fully_connect_output') as scope:
+                    generated_point = layers.fully_connected(
                         inputs=cell_out,
                         num_outputs=self.num_features,
                         activation_fn=tf.nn.relu,
                         weights_initializer=layers.xavier_initializer(),
                         biases_initializer=tf.zeros_initializer(),
                         scope=scope)
-                output_list.append(fconnect)
+                output_list.append(generated_point)
             # stack, axis=1 -> [batch, time, feature]
             result = tf.stack(output_list, axis=1)
             print('result', result)
@@ -153,7 +172,7 @@ class RNN_WGAN(object):
             real(from data) or fake(from G)
         seq_len : 
             temparily not used
-        
+
         Return
         ------
         decision : bool
@@ -210,7 +229,7 @@ class RNN_WGAN(object):
             [self.batch_size, 1, 1], minval=0.0, maxval=1.0)
         __X_inter = epsilon * __X + (1.0 - epsilon) * __G_sample
         grad = tf.gradients(self.__D(__X_inter, is_fake=True), [__X_inter])[0]
-        # TODO check: 
+        # TODO check:
         # grad_norm = tf.sqrt(tf.reduce_sum((grad)**2, axis=1))
         # grad_pen = tf.reduce_mean((grad_norm - 1.0)**2)
         grad_pen = tf.reduce_mean((tf.abs(grad) - 1.0)**2)

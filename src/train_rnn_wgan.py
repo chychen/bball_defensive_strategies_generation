@@ -21,11 +21,11 @@ import game_visualizer
 FLAGS = tf.app.flags.FLAGS
 
 # path parameters
-tf.app.flags.DEFINE_string('log_dir', 'v1/log/',
+tf.app.flags.DEFINE_string('log_dir', 'v3/log/',
                            "summary directory")
-tf.app.flags.DEFINE_string('checkpoints_dir', 'v1/checkpoints/',
+tf.app.flags.DEFINE_string('checkpoints_dir', 'v3/checkpoints/',
                            "checkpoints dir")
-tf.app.flags.DEFINE_string('sample_dir', 'v1/sample/',
+tf.app.flags.DEFINE_string('sample_dir', 'v3/sample/',
                            "directory to save generative result")
 tf.app.flags.DEFINE_string('data_path', '../data/NBA-TEAM1.npy',
                            "summary directory")
@@ -39,7 +39,7 @@ tf.app.flags.DEFINE_integer('num_features', 23,
 tf.app.flags.DEFINE_integer('latent_dims', 23,
                             "dimensions of latant variable")
 # training parameters
-tf.app.flags.DEFINE_integer('total_epoches', 500,
+tf.app.flags.DEFINE_integer('total_epoches', 3000,
                             "num of ephoches")
 # tf.app.flags.DEFINE_integer('num_train_D', 1,
 #                             "num of times of training D before train G")
@@ -49,17 +49,18 @@ tf.app.flags.DEFINE_float('learning_rate', 5e-5,
                           "learning rate")
 tf.app.flags.DEFINE_integer('hidden_size', 230,
                             "hidden size of LSTM")
-tf.app.flags.DEFINE_integer('rnn_layers', 1,
+tf.app.flags.DEFINE_integer('rnn_layers', 2,
                             "num of layers for rnn")
 tf.app.flags.DEFINE_integer('save_model_freq', 30,
                             "num of epoches to save model")
-tf.app.flags.DEFINE_integer('save_result_freq', 10,
+tf.app.flags.DEFINE_integer('save_result_freq', 5,
                             "num of epoches to save gif")
 tf.app.flags.DEFINE_integer('log_freq', 100,
                             "num of steps to log")
 tf.app.flags.DEFINE_float('penalty_lambda', 10.0,
                           "regularization parameter of wGAN loss function")
-
+tf.app.flags.DEFINE_bool('if_feed_previous', True,
+                         "if feed the previous output concated with current input")
 
 class TrainingConfig(object):
     """
@@ -84,6 +85,7 @@ class TrainingConfig(object):
         self.num_features = FLAGS.num_features
         self.latent_dims = FLAGS.latent_dims
         self.penalty_lambda = FLAGS.penalty_lambda
+        self.if_feed_previous = FLAGS.if_feed_previous
 
     def show(self):
         print("total_epoches:", self.total_epoches)
@@ -103,6 +105,7 @@ class TrainingConfig(object):
         print("num_features:", self.num_features)
         print("latent_dims:", self.latent_dims)
         print("penalty_lambda:", self.penalty_lambda)
+        print("if_feed_previous:", self.if_feed_previous)
 
 
 def z_samples():
@@ -151,20 +154,20 @@ def main(_):
                 # uniform-distribution
                 while batch_id < num_batches:
                     if D_loss_mean <= 0 and G_loss_mean <= 0:
-                        if D_loss_mean * 0.9 < G_loss_mean:
+                        if D_loss_mean * 0.8 < G_loss_mean:
                             # Generator
                             G_loss_mean, global_steps = model.G_step(
                                 sess, z_samples())
                             log_counter += 1
-                        elif D_loss_mean > G_loss_mean * 0.9:
-                            # Discriminator
-                            batch_idx = batch_id * FLAGS.batch_size
-                            real_data_batch = real_data[batch_idx:batch_idx +
-                                                        FLAGS.batch_size]
-                            D_loss_mean, global_steps = model.D_step(
-                                sess, z_samples(), real_data_batch)
-                            batch_id += 1
-                            log_counter += 1
+                        # elif D_loss_mean > G_loss_mean * 0.8:
+                        #     # Discriminator
+                        #     batch_idx = batch_id * FLAGS.batch_size
+                        #     real_data_batch = real_data[batch_idx:batch_idx +
+                        #                                 FLAGS.batch_size]
+                        #     D_loss_mean, global_steps = model.D_step(
+                        #         sess, z_samples(), real_data_batch)
+                        #     batch_id += 1
+                        #     log_counter += 1
                         else:
                             batch_idx = batch_id * FLAGS.batch_size
                             # data
