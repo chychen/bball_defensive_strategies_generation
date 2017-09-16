@@ -230,9 +230,9 @@ class RNN_WGAN(object):
         __X_inter = epsilon * __X + (1.0 - epsilon) * __G_sample
         grad = tf.gradients(self.__D(__X_inter, is_fake=True), [__X_inter])[0]
         # TODO check:
-        grad_norm = tf.sqrt(tf.reduce_sum((grad)**2, axis=1))
-        grad_pen = tf.reduce_mean((grad_norm - 1.0)**2)
-        # grad_pen = tf.reduce_mean((tf.abs(grad) - 1.0)**2)
+        # grad_norm = tf.sqrt(tf.reduce_sum((grad)**2, axis=1))
+        # grad_pen = tf.reduce_mean((grad_norm - 1.0)**2)
+        grad_pen = tf.reduce_mean((tf.abs(grad) - 1.0)**2)
 
         loss = tf.reduce_mean(
             D_fake) - tf.reduce_mean(D_real) + penalty_lambda * grad_pen
