@@ -41,8 +41,8 @@ tf.app.flags.DEFINE_integer('latent_dims', 23,
 # training parameters
 tf.app.flags.DEFINE_integer('total_epoches', 3000,
                             "num of ephoches")
-# tf.app.flags.DEFINE_integer('num_train_D', 1,
-#                             "num of times of training D before train G")
+tf.app.flags.DEFINE_integer('num_train_D', 5,
+                            "num of times of training D before train G")
 tf.app.flags.DEFINE_integer('batch_size', 64,
                             "batch size")
 tf.app.flags.DEFINE_float('learning_rate', 1e-4,
@@ -91,6 +91,7 @@ class TrainingConfig(object):
         self.penalty_lambda = FLAGS.penalty_lambda
         self.if_feed_previous = FLAGS.if_feed_previous
         self.D_freeze_factor = FLAGS.D_freeze_factor
+        self.num_train_D = FLAGS.num_train_D
         
 
     def show(self):
@@ -113,6 +114,7 @@ class TrainingConfig(object):
         print("penalty_lambda:", self.penalty_lambda)
         print("if_feed_previous:", self.if_feed_previous)
         print("D_freeze_factor:", self.D_freeze_factor)
+        print("num_train_D:", self.num_train_D)
 
 
 def z_samples():
@@ -160,40 +162,55 @@ def main(_):
                 batch_id = 0
                 # uniform-distribution
                 while batch_id < num_batches:
-                    if D_loss_mean <= 0 and G_loss_mean <= 0:
-                        if D_loss_mean * FLAGS.D_freeze_factor < G_loss_mean:
-                            # train G
-                            G_loss_mean, global_steps = model.G_step(
-                                sess, z_samples())
-                            log_counter += 1
-                        else:
-                            batch_idx = batch_id * FLAGS.batch_size
-                            # data
-                            real_data_batch = real_data[batch_idx:batch_idx +
-                                                        FLAGS.batch_size]
-                            # train D
-                            D_loss_mean, global_steps = model.D_step(
-                                sess, z_samples(), real_data_batch)
-                            batch_id += 1
-                            log_counter += 1
-                            # train G
-                            G_loss_mean, global_steps = model.G_step(
-                                sess, z_samples())
-                            log_counter += 1
-                    elif D_loss_mean > 0:
-                        # Discriminator
-                        batch_idx = batch_id * FLAGS.batch_size
+                    for _ in range(FLAGS.num_train_D):
+                        batch_idx = batch_id * FLAGS.batch_size % num_batches # make sure not exceed the boundary
+                        # data
                         real_data_batch = real_data[batch_idx:batch_idx +
                                                     FLAGS.batch_size]
+                        # train D
                         D_loss_mean, global_steps = model.D_step(
                             sess, z_samples(), real_data_batch)
                         batch_id += 1
                         log_counter += 1
-                    elif G_loss_mean > 0:
-                        # Generator
-                        G_loss_mean, global_steps = model.G_step(
-                            sess, z_samples())
-                        log_counter += 1
+                    # train G
+                    G_loss_mean, global_steps = model.G_step(
+                        sess, z_samples())
+                    log_counter += 1
+
+                    # if D_loss_mean <= 0 and G_loss_mean <= 0:
+                    #     if D_loss_mean * FLAGS.D_freeze_factor < G_loss_mean:
+                    #         # train G
+                    #         G_loss_mean, global_steps = model.G_step(
+                    #             sess, z_samples())
+                    #         log_counter += 1
+                    #     else:
+                    #         batch_idx = batch_id * FLAGS.batch_size
+                    #         # data
+                    #         real_data_batch = real_data[batch_idx:batch_idx +
+                    #                                     FLAGS.batch_size]
+                    #         # train D
+                    #         D_loss_mean, global_steps = model.D_step(
+                    #             sess, z_samples(), real_data_batch)
+                    #         batch_id += 1
+                    #         log_counter += 1
+                    #         # train G
+                    #         G_loss_mean, global_steps = model.G_step(
+                    #             sess, z_samples())
+                    #         log_counter += 1
+                    # elif D_loss_mean > 0:
+                    #     # Discriminator
+                    #     batch_idx = batch_id * FLAGS.batch_size
+                    #     real_data_batch = real_data[batch_idx:batch_idx +
+                    #                                 FLAGS.batch_size]
+                    #     D_loss_mean, global_steps = model.D_step(
+                    #         sess, z_samples(), real_data_batch)
+                    #     batch_id += 1
+                    #     log_counter += 1
+                    # elif G_loss_mean > 0:
+                    #     # Generator
+                    #     G_loss_mean, global_steps = model.G_step(
+                    #         sess, z_samples())
+                    #     log_counter += 1
 
                     # logging
                     if log_counter >= FLAGS.log_freq:
