@@ -63,6 +63,8 @@ class RNN_WGAN(object):
             self.batch_size, self.seq_length, self.latent_dims], name='latent_input')
         self.__X = tf.placeholder(dtype=tf.float32, shape=[
             self.batch_size, self.seq_length, self.num_features], name='real_data')
+        self.__if_pretrain = tf.placeholder(
+            dtype=tf.bool, shape=[], name='if_pretrain')
         # model
         self.__G_sample = self.__G(self.__z, seq_len=None)
         D_real = self.__D(self.__X, seq_len=None)
@@ -151,14 +153,17 @@ class RNN_WGAN(object):
                     cell_out, state = cell(
                         inputs=lstm_input, state=state, scope=scope)
                 with tf.variable_scope('fully_connect_output') as scope:
-                    generated_point = layers.fully_connected(
+                    fully_connect_output = layers.fully_connected(
                         inputs=cell_out,
                         num_outputs=self.num_features,
                         activation_fn=tf.nn.relu,
                         weights_initializer=layers.xavier_initializer(),
                         biases_initializer=tf.zeros_initializer(),
                         scope=scope)
-                output_list.append(generated_point)
+                output_list.append(fully_connect_output)
+                # if pretrain -> feed groudtruth as last output
+                generated_point = tf.cond(
+                    self.__if_pretrain, lambda: self.__X[:, time_step, :], lambda: fully_connect_output)
             # stack, axis=1 -> [batch, time, feature]
             result = tf.stack(output_list, axis=1)
             print('result', result)
@@ -184,13 +189,21 @@ class RNN_WGAN(object):
             output_list = []
             if is_fake:
                 tf.get_variable_scope().reuse_variables()
+            with tf.variable_scope('fully_connect_concat') as scope:
+                blstm_input = layers.fully_connected(
+                    inputs=inputs,
+                    num_outputs=self.hidden_size,
+                    activation_fn=tf.nn.relu,
+                    weights_initializer=layers.xavier_initializer(),
+                    biases_initializer=tf.zeros_initializer(),
+                    scope=scope)
             with tf.variable_scope('stack_bi_lstm') as scope:
                 out_blstm_list, _, _ = rnn.stack_bidirectional_rnn(
                     cells_fw=[self.__lstm_cell()
                               for _ in range(self.rnn_layers)],
                     cells_bw=[self.__lstm_cell()
                               for _ in range(self.rnn_layers)],
-                    inputs=inputs,
+                    inputs=blstm_input,
                     dtype=tf.float32,
                     sequence_length=seq_len,
                     scope=scope
@@ -229,19 +242,20 @@ class RNN_WGAN(object):
             [self.batch_size, 1, 1], minval=0.0, maxval=1.0)
         __X_inter = epsilon * __X + (1.0 - epsilon) * __G_sample
         grad = tf.gradients(self.__D(__X_inter, is_fake=True), [__X_inter])[0]
-        # TODO check:
-        # grad_norm = tf.sqrt(tf.reduce_sum((grad)**2, axis=1))
-        # grad_pen = tf.reduce_mean((grad_norm - 1.0)**2)
+        # # TODO old one:
         grad_pen = tf.reduce_mean((tf.abs(grad) - 1.0)**2)
+        # TODO correct one:
+        # grad_norm = tf.sqrt(tf.reduce_sum((grad)**2, axis=2))
+        # grad_pen = tf.reduce_mean((grad_norm - 1.0)**2)
 
         loss = tf.reduce_mean(
             D_fake) - tf.reduce_mean(D_real) + penalty_lambda * grad_pen
         return loss
 
-    def G_step(self, sess, latent_inputs):
+    def G_step(self, sess, latent_inputs, if_pretrain=False, real_data=None):
         """ train one batch on G
         """
-        feed_dict = {self.__z: latent_inputs}
+        feed_dict = {self.__z: latent_inputs, self.__if_pretrain: if_pretrain, self.__X: real_data}
         loss, global_steps, _ = sess.run(
             [self.__G_loss, self.__global_steps,
                 self.__G_solver], feed_dict=feed_dict)
@@ -251,10 +265,11 @@ class RNN_WGAN(object):
             summary, global_step=global_steps)
         return loss, global_steps
 
-    def D_step(self, sess, latent_inputs, real_data):
+    def D_step(self, sess, latent_inputs, real_data, if_pretrain=False):
         """ train one batch on D
         """
-        feed_dict = {self.__z: latent_inputs, self.__X: real_data}
+        feed_dict = {self.__z: latent_inputs,
+                     self.__X: real_data, self.__if_pretrain: if_pretrain}
         loss, global_steps, _ = sess.run(
             [self.__D_loss, self.__global_steps,
                 self.__D_solver], feed_dict=feed_dict)
@@ -264,10 +279,10 @@ class RNN_WGAN(object):
             summary, global_step=global_steps)
         return loss, global_steps
 
-    def generate(self, sess, latent_inputs):
+    def generate(self, sess, latent_inputs, if_pretrain=False, real_data=None):
         """ to generate result
         """
-        feed_dict = {self.__z: latent_inputs}
+        feed_dict = {self.__z: latent_inputs, self.__if_pretrain: if_pretrain, self.__X: real_data}
         result = sess.run(self.__G_sample, feed_dict=feed_dict)
         return result
 

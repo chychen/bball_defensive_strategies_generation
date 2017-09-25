@@ -21,11 +21,11 @@ import game_visualizer
 FLAGS = tf.app.flags.FLAGS
 
 # path parameters
-tf.app.flags.DEFINE_string('log_dir', 'v4/log/',
+tf.app.flags.DEFINE_string('log_dir', 'v5/log/',
                            "summary directory")
-tf.app.flags.DEFINE_string('checkpoints_dir', 'v4/checkpoints/',
+tf.app.flags.DEFINE_string('checkpoints_dir', 'v5/checkpoints/',
                            "checkpoints dir")
-tf.app.flags.DEFINE_string('sample_dir', 'v4/sample/',
+tf.app.flags.DEFINE_string('sample_dir', 'v5/sample/',
                            "directory to save generative result")
 tf.app.flags.DEFINE_string('data_path', '../data/NBA-TEAM1.npy',
                            "summary directory")
@@ -39,13 +39,13 @@ tf.app.flags.DEFINE_integer('num_features', 23,
 tf.app.flags.DEFINE_integer('latent_dims', 23,
                             "dimensions of latant variable")
 # training parameters
-tf.app.flags.DEFINE_integer('total_epoches', 3000,
+tf.app.flags.DEFINE_integer('total_epoches', 1000,
                             "num of ephoches")
 tf.app.flags.DEFINE_integer('num_train_D', 5,
                             "num of times of training D before train G")
 tf.app.flags.DEFINE_integer('batch_size', 64,
                             "batch size")
-tf.app.flags.DEFINE_float('learning_rate', 1e-4,
+tf.app.flags.DEFINE_float('learning_rate', 5e-5,
                           "learning rate")
 tf.app.flags.DEFINE_integer('hidden_size', 230,
                             "hidden size of LSTM")
@@ -55,12 +55,12 @@ tf.app.flags.DEFINE_float('penalty_lambda', 10.0,
                           "regularization parameter of wGAN loss function")
 tf.app.flags.DEFINE_bool('if_feed_previous', True,
                          "if feed the previous output concated with current input")
-tf.app.flags.DEFINE_float('D_freeze_factor', 0.8,
-                          "when D loss * D_freeze_factor > G loss, freeze D!!!")
+tf.app.flags.DEFINE_integer('pretrain_ephoches', 200,
+                            "num of ephoch to train label as input")
 # logging
 tf.app.flags.DEFINE_integer('save_model_freq', 30,
                             "num of epoches to save model")
-tf.app.flags.DEFINE_integer('save_result_freq', 5,
+tf.app.flags.DEFINE_integer('save_result_freq', 10,
                             "num of epoches to save gif")
 tf.app.flags.DEFINE_integer('log_freq', 100,
                             "num of steps to log")
@@ -73,7 +73,6 @@ class TrainingConfig(object):
 
     def __init__(self):
         self.total_epoches = FLAGS.total_epoches
-        # self.num_train_D = FLAGS.num_train_D
         self.batch_size = FLAGS.batch_size
         self.log_dir = FLAGS.log_dir
         self.checkpoints_dir = FLAGS.checkpoints_dir
@@ -90,13 +89,12 @@ class TrainingConfig(object):
         self.latent_dims = FLAGS.latent_dims
         self.penalty_lambda = FLAGS.penalty_lambda
         self.if_feed_previous = FLAGS.if_feed_previous
-        self.D_freeze_factor = FLAGS.D_freeze_factor
         self.num_train_D = FLAGS.num_train_D
+        self.pretrain_ephoches = FLAGS.pretrain_ephoches
         
 
     def show(self):
         print("total_epoches:", self.total_epoches)
-        # print("num_train_D:", self.num_train_D)
         print("batch_size:", self.batch_size)
         print("log_dir:", self.log_dir)
         print("checkpoints_dir:", self.checkpoints_dir)
@@ -113,14 +111,73 @@ class TrainingConfig(object):
         print("latent_dims:", self.latent_dims)
         print("penalty_lambda:", self.penalty_lambda)
         print("if_feed_previous:", self.if_feed_previous)
-        print("D_freeze_factor:", self.D_freeze_factor)
         print("num_train_D:", self.num_train_D)
+        print("pretrain_ephoches:", self.pretrain_ephoches)
 
 
 def z_samples():
     # TODO sample z from normal-distribution than
     return np.random.uniform(
         -1., 1., size=[FLAGS.batch_size, FLAGS.seq_length, FLAGS.latent_dims])
+
+
+def training(sess, model, real_data, num_batches, saver, is_pretrain=False):
+    """
+    """
+    if is_pretrain:
+        num_epoches = FLAGS.pretrain_ephoches
+    else:
+        num_epoches = FLAGS.total_epoches
+    D_loss_mean = 0.0
+    G_loss_mean = 0.0
+    log_counter = 0
+    # to evaluate time cost
+    start_time = time.time()
+    for epoch_id in range(num_epoches):
+        # shuffle the data
+        shuffled_indexes = np.random.permutation(real_data.shape[0])
+        real_data = real_data[shuffled_indexes]
+
+        batch_id = 0
+        while batch_id < num_batches - FLAGS.num_train_D:
+            for _ in range(FLAGS.num_train_D):
+                # make sure not exceed the boundary
+                data_idx = batch_id * FLAGS.batch_size
+                # data
+                real_data_batch = real_data[data_idx:data_idx +
+                                            FLAGS.batch_size]
+                # train D
+                D_loss_mean, global_steps = model.D_step(
+                    sess, z_samples(), real_data_batch, is_pretrain)
+                batch_id += 1
+                log_counter += 1
+            # train G
+            G_loss_mean, global_steps = model.G_step(
+                sess, z_samples(), is_pretrain, real_data_batch)
+            log_counter += 1
+
+            # logging
+            if log_counter >= FLAGS.log_freq:
+                end_time = time.time()
+                log_counter = 0
+                print("%d, epoches, %d steps, mean D_loss: %f, mean G_loss: %f, time cost: %f(sec)" %
+                      (epoch_id,
+                       global_steps,
+                       D_loss_mean,
+                       G_loss_mean,
+                       (end_time - start_time)))
+                start_time = time.time()  # save checkpoints
+        # save model
+        if (epoch_id % FLAGS.save_model_freq) == 0 or epoch_id == FLAGS.total_epoches - 1:
+            save_path = saver.save(
+                sess, FLAGS.checkpoints_dir + "model.ckpt",
+                global_step=global_steps)
+            print("Model saved in file: %s" % save_path)
+        # plot generated sample
+        if (epoch_id % FLAGS.save_result_freq) == 0 or epoch_id == FLAGS.total_epoches - 1:
+            samples = model.generate(sess, z_samples(), is_pretrain, real_data_batch)
+            game_visualizer.plot_data(
+                samples, FLAGS.seq_length, file_path=FLAGS.sample_dir + str(global_steps) + '.gif', if_save=True)
 
 
 def main(_):
@@ -148,92 +205,12 @@ def main(_):
                 saver.restore(sess, FLAGS.restore_path)
                 print('successfully restore model from checkpoint: %s' %
                       (FLAGS.restore_path))
+            # pre-training
+            if FLAGS.pretrain_ephoches>0:
+                training(sess, model, real_data, num_batches, saver, is_pretrain=True)
+
             # training
-            D_loss_mean = 0.0
-            G_loss_mean = 0.0
-            log_counter = 0
-            # to evaluate time cost
-            start_time = time.time()
-            for epoch_id in range(FLAGS.total_epoches):
-                # shuffle the data
-                shuffled_indexes = np.random.permutation(real_data.shape[0])
-                real_data = real_data[shuffled_indexes]
-
-                batch_id = 0
-                # uniform-distribution
-                while batch_id < num_batches:
-                    for _ in range(FLAGS.num_train_D):
-                        batch_idx = batch_id * FLAGS.batch_size % num_batches # make sure not exceed the boundary
-                        # data
-                        real_data_batch = real_data[batch_idx:batch_idx +
-                                                    FLAGS.batch_size]
-                        # train D
-                        D_loss_mean, global_steps = model.D_step(
-                            sess, z_samples(), real_data_batch)
-                        batch_id += 1
-                        log_counter += 1
-                    # train G
-                    G_loss_mean, global_steps = model.G_step(
-                        sess, z_samples())
-                    log_counter += 1
-
-                    # if D_loss_mean <= 0 and G_loss_mean <= 0:
-                    #     if D_loss_mean * FLAGS.D_freeze_factor < G_loss_mean:
-                    #         # train G
-                    #         G_loss_mean, global_steps = model.G_step(
-                    #             sess, z_samples())
-                    #         log_counter += 1
-                    #     else:
-                    #         batch_idx = batch_id * FLAGS.batch_size
-                    #         # data
-                    #         real_data_batch = real_data[batch_idx:batch_idx +
-                    #                                     FLAGS.batch_size]
-                    #         # train D
-                    #         D_loss_mean, global_steps = model.D_step(
-                    #             sess, z_samples(), real_data_batch)
-                    #         batch_id += 1
-                    #         log_counter += 1
-                    #         # train G
-                    #         G_loss_mean, global_steps = model.G_step(
-                    #             sess, z_samples())
-                    #         log_counter += 1
-                    # elif D_loss_mean > 0:
-                    #     # Discriminator
-                    #     batch_idx = batch_id * FLAGS.batch_size
-                    #     real_data_batch = real_data[batch_idx:batch_idx +
-                    #                                 FLAGS.batch_size]
-                    #     D_loss_mean, global_steps = model.D_step(
-                    #         sess, z_samples(), real_data_batch)
-                    #     batch_id += 1
-                    #     log_counter += 1
-                    # elif G_loss_mean > 0:
-                    #     # Generator
-                    #     G_loss_mean, global_steps = model.G_step(
-                    #         sess, z_samples())
-                    #     log_counter += 1
-
-                    # logging
-                    if log_counter >= FLAGS.log_freq:
-                        end_time = time.time()
-                        log_counter = 0
-                        print("%d, epoches, %d steps, mean D_loss: %f, mean G_loss: %f, time cost: %f(sec)" %
-                              (epoch_id,
-                               global_steps,
-                               D_loss_mean,
-                               G_loss_mean,
-                               (end_time - start_time)))
-                        start_time = time.time()  # save checkpoints
-                # save model
-                if (epoch_id % FLAGS.save_model_freq) == 0 or epoch_id == FLAGS.total_epoches - 1:
-                    save_path = saver.save(
-                        sess, FLAGS.checkpoints_dir + "model.ckpt",
-                        global_step=global_steps)
-                    print("Model saved in file: %s" % save_path)
-                # plot generated sample
-                if (epoch_id % FLAGS.save_result_freq) == 0 or epoch_id == FLAGS.total_epoches - 1:
-                    samples = model.generate(sess, z_samples())
-                    game_visualizer.plot_data(
-                        samples, FLAGS.seq_length, file_path=FLAGS.sample_dir + str(global_steps) + '.gif', if_save=True)
+            training(sess, model, real_data, num_batches, saver)
 
 
 if __name__ == '__main__':
