@@ -55,7 +55,7 @@ tf.app.flags.DEFINE_float('penalty_lambda', 10.0,
                           "regularization parameter of wGAN loss function")
 tf.app.flags.DEFINE_bool('if_feed_previous', True,
                          "if feed the previous output concated with current input")
-tf.app.flags.DEFINE_integer('pretrain_ephoches', 200,
+tf.app.flags.DEFINE_integer('pretrain_epoches', 200,
                             "num of ephoch to train label as input")
 # logging
 tf.app.flags.DEFINE_integer('save_model_freq', 30,
@@ -90,7 +90,7 @@ class TrainingConfig(object):
         self.penalty_lambda = FLAGS.penalty_lambda
         self.if_feed_previous = FLAGS.if_feed_previous
         self.num_train_D = FLAGS.num_train_D
-        self.pretrain_ephoches = FLAGS.pretrain_ephoches
+        self.pretrain_epoches = FLAGS.pretrain_epoches
         
 
     def show(self):
@@ -112,7 +112,7 @@ class TrainingConfig(object):
         print("penalty_lambda:", self.penalty_lambda)
         print("if_feed_previous:", self.if_feed_previous)
         print("num_train_D:", self.num_train_D)
-        print("pretrain_ephoches:", self.pretrain_ephoches)
+        print("pretrain_epoches:", self.pretrain_epoches)
 
 
 def z_samples():
@@ -125,7 +125,7 @@ def training(sess, model, real_data, num_batches, saver, is_pretrain=False):
     """
     """
     if is_pretrain:
-        num_epoches = FLAGS.pretrain_ephoches
+        num_epoches = FLAGS.pretrain_epoches
     else:
         num_epoches = FLAGS.total_epoches
     D_loss_mean = 0.0
@@ -206,7 +206,7 @@ def main(_):
                 print('successfully restore model from checkpoint: %s' %
                       (FLAGS.restore_path))
             # pre-training
-            if FLAGS.pretrain_ephoches>0:
+            if FLAGS.pretrain_epoches>0:
                 training(sess, model, real_data, num_batches, saver, is_pretrain=True)
 
             # training

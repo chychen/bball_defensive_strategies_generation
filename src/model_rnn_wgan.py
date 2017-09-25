@@ -186,17 +186,20 @@ class RNN_WGAN(object):
         # unstack, axis=1 -> [batch, time, feature]
         inputs = tf.unstack(inputs, num=self.seq_length, axis=1)
         with tf.variable_scope('D') as scope:
+            blstm_input = []
             output_list = []
             if is_fake:
                 tf.get_variable_scope().reuse_variables()
-            with tf.variable_scope('fully_connect_concat') as scope:
-                blstm_input = layers.fully_connected(
-                    inputs=inputs,
-                    num_outputs=self.hidden_size,
-                    activation_fn=tf.nn.relu,
-                    weights_initializer=layers.xavier_initializer(),
-                    biases_initializer=tf.zeros_initializer(),
-                    scope=scope)
+            for time_step in range(self.seq_length):
+                with tf.variable_scope('fully_connect_input') as scope:
+                    fully_connect_input = layers.fully_connected(
+                        inputs=inputs[:, time_step, :],
+                        num_outputs=self.hidden_size,
+                        activation_fn=tf.nn.relu,
+                        weights_initializer=layers.xavier_initializer(),
+                        biases_initializer=tf.zeros_initializer(),
+                        scope=scope)
+                blstm_input.append(fully_connect_input)
             with tf.variable_scope('stack_bi_lstm') as scope:
                 out_blstm_list, _, _ = rnn.stack_bidirectional_rnn(
                     cells_fw=[self.__lstm_cell()
@@ -255,7 +258,8 @@ class RNN_WGAN(object):
     def G_step(self, sess, latent_inputs, if_pretrain=False, real_data=None):
         """ train one batch on G
         """
-        feed_dict = {self.__z: latent_inputs, self.__if_pretrain: if_pretrain, self.__X: real_data}
+        feed_dict = {self.__z: latent_inputs,
+                     self.__if_pretrain: if_pretrain, self.__X: real_data}
         loss, global_steps, _ = sess.run(
             [self.__G_loss, self.__global_steps,
                 self.__G_solver], feed_dict=feed_dict)
@@ -282,7 +286,8 @@ class RNN_WGAN(object):
     def generate(self, sess, latent_inputs, if_pretrain=False, real_data=None):
         """ to generate result
         """
-        feed_dict = {self.__z: latent_inputs, self.__if_pretrain: if_pretrain, self.__X: real_data}
+        feed_dict = {self.__z: latent_inputs,
+                     self.__if_pretrain: if_pretrain, self.__X: real_data}
         result = sess.run(self.__G_sample, feed_dict=feed_dict)
         return result
 
