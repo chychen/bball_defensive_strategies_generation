@@ -136,6 +136,9 @@ class RNN_WGAN(object):
             for time_step in range(self.seq_length):
                 if time_step > 0:
                     tf.get_variable_scope().reuse_variables()
+                # if pretrain -> feed groudtruth as last output
+                generated_point = tf.cond(
+                    self.__if_pretrain, lambda: self.__X[:, time_step, :], lambda: generated_point)
                 input_ = inputs[:, time_step, :]
                 concat_values = [input_]
                 if self.if_feed_previous:
@@ -146,24 +149,23 @@ class RNN_WGAN(object):
                         inputs=input_,
                         num_outputs=self.hidden_size,
                         activation_fn=tf.nn.relu,
-                        weights_initializer=layers.xavier_initializer(),
+                        weights_initializer=layers.xavier_initializer(
+                            uniform=False),
                         biases_initializer=tf.zeros_initializer(),
                         scope=scope)
                 with tf.variable_scope('stack_lstm') as scope:
                     cell_out, state = cell(
                         inputs=lstm_input, state=state, scope=scope)
                 with tf.variable_scope('fully_connect_output') as scope:
-                    fully_connect_output = layers.fully_connected(
+                    generated_point = layers.fully_connected(
                         inputs=cell_out,
                         num_outputs=self.num_features,
                         activation_fn=tf.nn.relu,
-                        weights_initializer=layers.xavier_initializer(),
+                        weights_initializer=layers.xavier_initializer(
+                            uniform=False),
                         biases_initializer=tf.zeros_initializer(),
                         scope=scope)
-                output_list.append(fully_connect_output)
-                # if pretrain -> feed groudtruth as last output
-                generated_point = tf.cond(
-                    self.__if_pretrain, lambda: self.__X[:, time_step, :], lambda: fully_connect_output)
+                output_list.append(generated_point)
             # stack, axis=1 -> [batch, time, feature]
             result = tf.stack(output_list, axis=1)
             print('result', result)
@@ -192,12 +194,15 @@ class RNN_WGAN(object):
                 tf.get_variable_scope().reuse_variables()
             for time_step in range(self.seq_length):
                 with tf.variable_scope('fully_connect_input') as scope:
+                    if time_step > 0:
+                        tf.get_variable_scope().reuse_variables()
                     fully_connect_input = layers.fully_connected(
-                        inputs=inputs[:, time_step, :],
+                        inputs=inputs[time_step],
                         num_outputs=self.hidden_size,
                         activation_fn=tf.nn.relu,
-                        weights_initializer=layers.xavier_initializer(),
-                        biases_initializer=tf.zeros_initializer(),
+                        weights_initializer=layers.xavier_initializer(
+                            uniform=False),
+                        biases_initializer=tf.constant_initializer(),
                         scope=scope)
                 blstm_input.append(fully_connect_input)
             with tf.variable_scope('stack_bi_lstm') as scope:
@@ -219,7 +224,8 @@ class RNN_WGAN(object):
                         inputs=out_blstm,
                         num_outputs=1,
                         activation_fn=tf.nn.relu,
-                        weights_initializer=layers.xavier_initializer(),
+                        weights_initializer=layers.xavier_initializer(
+                            uniform=False),
                         biases_initializer=tf.zeros_initializer(),
                         scope=scope)
                 output_list.append(fconnect)
@@ -246,10 +252,11 @@ class RNN_WGAN(object):
         __X_inter = epsilon * __X + (1.0 - epsilon) * __G_sample
         grad = tf.gradients(self.__D(__X_inter, is_fake=True), [__X_inter])[0]
         # # TODO old one:
-        grad_pen = tf.reduce_mean((tf.abs(grad) - 1.0)**2)
+        # grad_pen = tf.reduce_mean((tf.abs(grad) - 1.0)**2)
         # TODO correct one:
-        # grad_norm = tf.sqrt(tf.reduce_sum((grad)**2, axis=2))
-        # grad_pen = tf.reduce_mean((grad_norm - 1.0)**2)
+        sum_ = tf.reduce_sum(tf.square(grad), axis=[1, 2]) + 0.0001
+        grad_norm = tf.sqrt(sum_)
+        grad_pen = tf.reduce_mean(tf.square(grad_norm - 1.0))
 
         loss = tf.reduce_mean(
             D_fake) - tf.reduce_mean(D_real) + penalty_lambda * grad_pen

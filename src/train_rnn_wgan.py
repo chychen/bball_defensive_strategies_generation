@@ -21,13 +21,13 @@ import game_visualizer
 FLAGS = tf.app.flags.FLAGS
 
 # path parameters
-tf.app.flags.DEFINE_string('log_dir', 'v5/log/',
+tf.app.flags.DEFINE_string('log_dir', 'v6/log/',
                            "summary directory")
-tf.app.flags.DEFINE_string('checkpoints_dir', 'v5/checkpoints/',
+tf.app.flags.DEFINE_string('checkpoints_dir', 'v6/checkpoints/',
                            "checkpoints dir")
-tf.app.flags.DEFINE_string('sample_dir', 'v5/sample/',
+tf.app.flags.DEFINE_string('sample_dir', 'v6/sample/',
                            "directory to save generative result")
-tf.app.flags.DEFINE_string('data_path', '../data/NBA-TEAM1.npy',
+tf.app.flags.DEFINE_string('data_path', '../data/NBA-ALL.npy',
                            "summary directory")
 tf.app.flags.DEFINE_string('restore_path', None,
                            "path of saving model eg: checkpoints/model.ckpt-5")
@@ -55,7 +55,7 @@ tf.app.flags.DEFINE_float('penalty_lambda', 10.0,
                           "regularization parameter of wGAN loss function")
 tf.app.flags.DEFINE_bool('if_feed_previous', True,
                          "if feed the previous output concated with current input")
-tf.app.flags.DEFINE_integer('pretrain_epoches', 200,
+tf.app.flags.DEFINE_integer('pretrain_epoches', 300,
                             "num of ephoch to train label as input")
 # logging
 tf.app.flags.DEFINE_integer('save_model_freq', 30,
@@ -140,9 +140,10 @@ def training(sess, model, real_data, num_batches, saver, is_pretrain=False):
 
         batch_id = 0
         while batch_id < num_batches - FLAGS.num_train_D:
-            for _ in range(FLAGS.num_train_D):
+            real_data_batch = None
+            for _ in range(100):
                 # make sure not exceed the boundary
-                data_idx = batch_id * FLAGS.batch_size
+                data_idx = batch_id * FLAGS.batch_size % (real_data.shape[0]-FLAGS.batch_size)
                 # data
                 real_data_batch = real_data[data_idx:data_idx +
                                             FLAGS.batch_size]
@@ -152,9 +153,10 @@ def training(sess, model, real_data, num_batches, saver, is_pretrain=False):
                 batch_id += 1
                 log_counter += 1
             # train G
-            G_loss_mean, global_steps = model.G_step(
-                sess, z_samples(), is_pretrain, real_data_batch)
-            log_counter += 1
+            for _ in range(100):
+                G_loss_mean, global_steps = model.G_step(
+                    sess, z_samples(), is_pretrain, real_data_batch)
+                log_counter += 1
 
             # logging
             if log_counter >= FLAGS.log_freq:
