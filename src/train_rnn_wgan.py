@@ -21,7 +21,7 @@ import game_visualizer
 FLAGS = tf.app.flags.FLAGS
 
 # path parameters
-tf.app.flags.DEFINE_string('log_dir', 'v6/log/',
+tf.app.flags.DEFINE_string('log_dir', 'v7/log/',
                            "summary directory")
 tf.app.flags.DEFINE_string('checkpoints_dir', 'v7/checkpoints/',
                            "checkpoints dir")
@@ -39,7 +39,7 @@ tf.app.flags.DEFINE_integer('num_features', 23,
 tf.app.flags.DEFINE_integer('latent_dims', 23,
                             "dimensions of latant variable")
 # training parameters
-tf.app.flags.DEFINE_integer('total_epoches', 0,
+tf.app.flags.DEFINE_integer('total_epoches', 1000,
                             "num of ephoches")
 tf.app.flags.DEFINE_integer('num_train_D', 5,
                             "num of times of training D before train G")
@@ -47,15 +47,15 @@ tf.app.flags.DEFINE_integer('batch_size', 64,
                             "batch size")
 tf.app.flags.DEFINE_float('learning_rate', 1e-4,
                           "learning rate")
-tf.app.flags.DEFINE_integer('hidden_size', 230,
+tf.app.flags.DEFINE_integer('hidden_size', 23,
                             "hidden size of LSTM")
-tf.app.flags.DEFINE_integer('rnn_layers', 2,
+tf.app.flags.DEFINE_integer('rnn_layers', 1,
                             "num of layers for rnn")
 tf.app.flags.DEFINE_float('penalty_lambda', 1.0,
                           "regularization parameter of wGAN loss function")
-tf.app.flags.DEFINE_bool('if_feed_previous', True,
+tf.app.flags.DEFINE_bool('if_feed_previous', False,
                          "if feed the previous output concated with current input")
-tf.app.flags.DEFINE_integer('pretrain_epoches', 1000,
+tf.app.flags.DEFINE_integer('pretrain_epoches', 0,
                             "num of ephoch to train label as input")
 # logging
 tf.app.flags.DEFINE_integer('save_model_freq', 30,
@@ -91,7 +91,6 @@ class TrainingConfig(object):
         self.if_feed_previous = FLAGS.if_feed_previous
         self.num_train_D = FLAGS.num_train_D
         self.pretrain_epoches = FLAGS.pretrain_epoches
-        
 
     def show(self):
         print("total_epoches:", self.total_epoches)
@@ -144,7 +143,8 @@ def training(sess, model, real_data, num_batches, saver, is_pretrain=False):
             # TODO make sure fairly train model on every batch
             for _ in range(FLAGS.num_train_D):
                 # make sure not exceed the boundary
-                data_idx = batch_id * FLAGS.batch_size % (real_data.shape[0]-FLAGS.batch_size)
+                data_idx = batch_id * \
+                    FLAGS.batch_size % (real_data.shape[0] - FLAGS.batch_size)
                 # data
                 real_data_batch = real_data[data_idx:data_idx +
                                             FLAGS.batch_size]
@@ -178,7 +178,8 @@ def training(sess, model, real_data, num_batches, saver, is_pretrain=False):
             print("Model saved in file: %s" % save_path)
         # plot generated sample
         if (epoch_id % FLAGS.save_result_freq) == 0 or epoch_id == FLAGS.total_epoches - 1:
-            samples = model.generate(sess, z_samples(), is_pretrain, real_data_batch)
+            samples = model.generate(
+                sess, z_samples(), is_pretrain, real_data_batch)
             game_visualizer.plot_data(
                 samples, FLAGS.seq_length, file_path=FLAGS.sample_dir + str(global_steps) + '.gif', if_save=True)
 
@@ -209,8 +210,9 @@ def main(_):
                 print('successfully restore model from checkpoint: %s' %
                       (FLAGS.restore_path))
             # pre-training
-            if FLAGS.pretrain_epoches>0:
-                training(sess, model, real_data, num_batches, saver, is_pretrain=True)
+            if FLAGS.pretrain_epoches > 0:
+                training(sess, model, real_data, num_batches,
+                         saver, is_pretrain=True)
 
             # training
             training(sess, model, real_data, num_batches, saver)
