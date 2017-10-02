@@ -141,7 +141,11 @@ def training(sess, model, real_data, num_batches, saver, is_pretrain=False):
         while batch_id < num_batches - FLAGS.num_train_D:
             real_data_batch = None
             # TODO make sure fairly train model on every batch
-            for _ in range(FLAGS.num_train_D):
+            if epoch_id < 25 or (epoch_id + 1) % 50 == 0:
+                num_train_D = num_batches
+            else:
+                num_train_D = FLAGS.num_train_D
+            for _ in range(num_train_D):
                 # make sure not exceed the boundary
                 data_idx = batch_id * \
                     FLAGS.batch_size % (real_data.shape[0] - FLAGS.batch_size)
@@ -154,7 +158,6 @@ def training(sess, model, real_data, num_batches, saver, is_pretrain=False):
                 batch_id += 1
                 log_counter += 1
             # train G
-            # for _ in range(100):
             G_loss_mean, global_steps = model.G_step(
                 sess, z_samples(), is_pretrain, real_data_batch)
             log_counter += 1
