@@ -39,7 +39,7 @@ tf.app.flags.DEFINE_integer('num_features', 23,
 tf.app.flags.DEFINE_integer('latent_dims', 23,
                             "dimensions of latant variable")
 # training parameters
-tf.app.flags.DEFINE_integer('total_epoches', 1000,
+tf.app.flags.DEFINE_integer('total_epoches', 3000,
                             "num of ephoches")
 tf.app.flags.DEFINE_integer('num_train_D', 5,
                             "num of times of training D before train G")
@@ -120,7 +120,7 @@ def z_samples():
         -1., 1., size=[FLAGS.batch_size, FLAGS.seq_length, FLAGS.latent_dims])
 
 
-def training(sess, model, real_data, num_batches, saver, is_pretrain=False):
+def training(sess, model, real_data, num_batches, saver, norm_dict, is_pretrain=False):
     """
     """
     if is_pretrain:
@@ -141,8 +141,8 @@ def training(sess, model, real_data, num_batches, saver, is_pretrain=False):
         while batch_id < num_batches - FLAGS.num_train_D:
             real_data_batch = None
             # TODO make sure fairly train model on every batch
-            if epoch_id < 25 or (epoch_id + 1) % 50 == 0:
-                num_train_D = num_batches
+            if epoch_id < 50 or (epoch_id + 1) % 50 == 0:
+                num_train_D = num_batches*5
             else:
                 num_train_D = FLAGS.num_train_D
             for _ in range(num_train_D):
@@ -183,6 +183,15 @@ def training(sess, model, real_data, num_batches, saver, is_pretrain=False):
         if (epoch_id % FLAGS.save_result_freq) == 0 or epoch_id == FLAGS.total_epoches - 1:
             samples = model.generate(
                 sess, z_samples(), is_pretrain, real_data_batch)
+            # X
+            samples[:, :, [0, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21]] = samples[:, :, [
+                0, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21]] * norm_dict['x']['stddev'] + norm_dict['x']['mean']
+            # Y
+            samples[:, :, [1, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22]] = samples[:, :, [
+                1, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22]] * norm_dict['y']['stddev'] + norm_dict['y']['mean']
+            # Z
+            samples[:, :, 2] = samples[:, :, 2] * \
+                norm_dict['z']['stddev'] + norm_dict['z']['mean']
             game_visualizer.plot_data(
                 samples, FLAGS.seq_length, file_path=FLAGS.sample_dir + str(global_steps) + '.gif', if_save=True)
 
@@ -193,7 +202,38 @@ def main(_):
         real_data = np.load(FLAGS.data_path)[:, :FLAGS.seq_length, [
             0, 1, 2, 3, 4, 6, 7, 9, 10, 12, 13, 15, 16, 18, 19, 21, 22, 24, 25, 27, 28, 30, 31]]
         print('real_data.shape', real_data.shape)
-        # TODO data normalization
+        norm_dict = {}
+        # X
+        mean_x = np.mean(
+            real_data[:, :, [0, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21]])
+        stddev_x = np.std(
+            real_data[:, :, [0, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21]])
+        real_data[:, :, [0, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21]] = (
+            real_data[:, :, [0, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21]] - mean_x) / stddev_x
+        norm_dict['x']={}
+        norm_dict['x']['mean'] = mean_x
+        norm_dict['x']['stddev'] = stddev_x
+        # Y
+        mean_y = np.mean(
+            real_data[:, :, [1, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22]])
+        stddev_y = np.std(
+            real_data[:, :, [1, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22]])
+        real_data[:, :, [1, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22]] = (
+            real_data[:, :, [1, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22]] - mean_y) / stddev_y
+        norm_dict['y']={}
+        norm_dict['y']['mean'] = mean_y
+        norm_dict['y']['stddev'] = stddev_y
+        # Z
+        mean_z = np.mean(
+            real_data[:, :, 2])
+        stddev_z = np.std(
+            real_data[:, :, 2])
+        real_data[:, :, 2] = (
+            real_data[:, :, 2] - mean_z) / stddev_z
+        norm_dict['z']={}
+        norm_dict['z']['mean'] = mean_z
+        norm_dict['z']['stddev'] = stddev_z
+
         # number of batches
         num_batches = real_data.shape[0] // FLAGS.batch_size
         # config setting
@@ -215,10 +255,10 @@ def main(_):
             # pre-training
             if FLAGS.pretrain_epoches > 0:
                 training(sess, model, real_data, num_batches,
-                         saver, is_pretrain=True)
+                         saver, norm_dict, is_pretrain=True)
 
             # training
-            training(sess, model, real_data, num_batches, saver)
+            training(sess, model, real_data, num_batches, saver, norm_dict)
 
 
 if __name__ == '__main__':
