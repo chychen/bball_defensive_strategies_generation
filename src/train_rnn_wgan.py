@@ -21,11 +21,11 @@ import game_visualizer
 FLAGS = tf.app.flags.FLAGS
 
 # path parameters
-tf.app.flags.DEFINE_string('log_dir', 'v7/log/',
+tf.app.flags.DEFINE_string('log_dir', 'v9/log/',
                            "summary directory")
-tf.app.flags.DEFINE_string('checkpoints_dir', 'v7/checkpoints/',
+tf.app.flags.DEFINE_string('checkpoints_dir', 'v9/checkpoints/',
                            "checkpoints dir")
-tf.app.flags.DEFINE_string('sample_dir', 'v7/sample/',
+tf.app.flags.DEFINE_string('sample_dir', 'v9/sample/',
                            "directory to save generative result")
 tf.app.flags.DEFINE_string('data_path', '../data/NBA-ALL.npy',
                            "summary directory")
@@ -49,9 +49,9 @@ tf.app.flags.DEFINE_float('learning_rate', 1e-4,
                           "learning rate")
 tf.app.flags.DEFINE_integer('hidden_size', 23,
                             "hidden size of LSTM")
-tf.app.flags.DEFINE_integer('rnn_layers', 1,
+tf.app.flags.DEFINE_integer('rnn_layers', 2,
                             "num of layers for rnn")
-tf.app.flags.DEFINE_float('penalty_lambda', 1.0,
+tf.app.flags.DEFINE_float('penalty_lambda', 10.0,
                           "regularization parameter of wGAN loss function")
 tf.app.flags.DEFINE_bool('if_feed_previous', False,
                          "if feed the previous output concated with current input")
@@ -141,7 +141,7 @@ def training(sess, model, real_data, num_batches, saver, norm_dict, is_pretrain=
         while batch_id < num_batches - FLAGS.num_train_D:
             real_data_batch = None
             # TODO make sure fairly train model on every batch
-            if epoch_id < 50 or (epoch_id + 1) % 50 == 0:
+            if epoch_id < 30 or (epoch_id + 1) % 50 == 0:
                 num_train_D = num_batches*5
             else:
                 num_train_D = FLAGS.num_train_D

@@ -157,17 +157,17 @@ class RNN_WGAN(object):
                 with tf.variable_scope('stack_lstm') as scope:
                     cell_out, state = cell(
                         inputs=lstm_input, state=state, scope=scope)
-                # with tf.variable_scope('fully_connect_output') as scope:
-                #     generated_point = layers.fully_connected(
-                #         inputs=cell_out,
-                #         num_outputs=self.num_features,
-                #         activation_fn=tf.nn.relu,
-                #         weights_initializer=layers.xavier_initializer(
-                #             uniform=False),
-                #         biases_initializer=tf.zeros_initializer(),
-                #         scope=scope)
-                # output_list.append(generated_point)
-                output_list.append(cell_out)  # TODO
+                with tf.variable_scope('fully_connect_output') as scope:
+                    generated_point = layers.fully_connected(
+                        inputs=cell_out,
+                        num_outputs=self.num_features,
+                        activation_fn=None,
+                        weights_initializer=layers.xavier_initializer(
+                            uniform=False),
+                        biases_initializer=tf.zeros_initializer(),
+                        scope=scope)
+                output_list.append(generated_point)
+                # output_list.append(cell_out)  # TODO
             # stack, axis=1 -> [batch, time, feature]
             result = tf.stack(output_list, axis=1)
             print('result', result)
@@ -226,7 +226,7 @@ class RNN_WGAN(object):
                     fconnect = layers.fully_connected(
                         inputs=out_blstm,
                         num_outputs=1,
-                        activation_fn=tf.nn.relu,
+                        activation_fn=None,
                         weights_initializer=layers.xavier_initializer(
                             uniform=False),
                         biases_initializer=tf.zeros_initializer(),
@@ -254,7 +254,7 @@ class RNN_WGAN(object):
             [self.batch_size, 1, 1], minval=0.0, maxval=1.0)
         __X_inter = epsilon * __X + (1.0 - epsilon) * __G_sample
         grad = tf.gradients(self.__D(__X_inter, is_fake=True), [__X_inter])[0]
-        sum_ = tf.reduce_sum(tf.square(grad), axis=[1, 2]) + 0.0001
+        sum_ = tf.reduce_sum(tf.square(grad), axis=[1, 2])
         grad_norm = tf.sqrt(sum_)
         grad_pen = tf.reduce_mean(tf.square(grad_norm - 1.0))
 
