@@ -16,16 +16,16 @@ import numpy as np
 import tensorflow as tf
 import model_rnn_wgan
 import game_visualizer
-
+from utils import Norm
 
 FLAGS = tf.app.flags.FLAGS
 
 # path parameters
-tf.app.flags.DEFINE_string('log_dir', 'v9/log/',
+tf.app.flags.DEFINE_string('log_dir', 'v10/log/',
                            "summary directory")
-tf.app.flags.DEFINE_string('checkpoints_dir', 'v9/checkpoints/',
+tf.app.flags.DEFINE_string('checkpoints_dir', 'v10/checkpoints/',
                            "checkpoints dir")
-tf.app.flags.DEFINE_string('sample_dir', 'v9/sample/',
+tf.app.flags.DEFINE_string('sample_dir', 'v10/sample/',
                            "directory to save generative result")
 tf.app.flags.DEFINE_string('data_path', '../data/NBA-ALL.npy',
                            "summary directory")
@@ -47,22 +47,22 @@ tf.app.flags.DEFINE_integer('batch_size', 64,
                             "batch size")
 tf.app.flags.DEFINE_float('learning_rate', 1e-4,
                           "learning rate")
-tf.app.flags.DEFINE_integer('hidden_size', 23,
+tf.app.flags.DEFINE_integer('hidden_size', 230,
                             "hidden size of LSTM")
 tf.app.flags.DEFINE_integer('rnn_layers', 2,
                             "num of layers for rnn")
 tf.app.flags.DEFINE_float('penalty_lambda', 10.0,
                           "regularization parameter of wGAN loss function")
-tf.app.flags.DEFINE_bool('if_feed_previous', False,
+tf.app.flags.DEFINE_bool('if_feed_previous', True,
                          "if feed the previous output concated with current input")
 tf.app.flags.DEFINE_integer('pretrain_epoches', 0,
                             "num of ephoch to train label as input")
 # logging
-tf.app.flags.DEFINE_integer('save_model_freq', 30,
+tf.app.flags.DEFINE_integer('save_model_freq', 50,
                             "num of epoches to save model")
-tf.app.flags.DEFINE_integer('save_result_freq', 10,
+tf.app.flags.DEFINE_integer('save_result_freq', 25,
                             "num of epoches to save gif")
-tf.app.flags.DEFINE_integer('log_freq', 100,
+tf.app.flags.DEFINE_integer('log_freq', 200,
                             "num of steps to log")
 
 
@@ -120,7 +120,7 @@ def z_samples():
         -1., 1., size=[FLAGS.batch_size, FLAGS.seq_length, FLAGS.latent_dims])
 
 
-def training(sess, model, real_data, num_batches, saver, norm_dict, is_pretrain=False):
+def training(sess, model, real_data, num_batches, saver, normer, is_pretrain=False):
     """
     """
     if is_pretrain:
@@ -141,11 +141,16 @@ def training(sess, model, real_data, num_batches, saver, norm_dict, is_pretrain=
         while batch_id < num_batches - FLAGS.num_train_D:
             real_data_batch = None
             # TODO make sure fairly train model on every batch
-            if epoch_id < 30 or (epoch_id + 1) % 50 == 0:
-                num_train_D = num_batches*5
+            if epoch_id < 10 or (epoch_id + 1) % 50 == 0:
+                num_train_D = num_batches * 5
             else:
                 num_train_D = FLAGS.num_train_D
-            for _ in range(num_train_D):
+            for id_ in range(num_train_D):
+                if (id_ + 1) % num_batches == 0:
+                    # shuffle the data
+                    shuffled_indexes = np.random.permutation(
+                        real_data.shape[0])
+                    real_data = real_data[shuffled_indexes]
                 # make sure not exceed the boundary
                 data_idx = batch_id * \
                     FLAGS.batch_size % (real_data.shape[0] - FLAGS.batch_size)
@@ -183,15 +188,9 @@ def training(sess, model, real_data, num_batches, saver, norm_dict, is_pretrain=
         if (epoch_id % FLAGS.save_result_freq) == 0 or epoch_id == FLAGS.total_epoches - 1:
             samples = model.generate(
                 sess, z_samples(), is_pretrain, real_data_batch)
-            # X
-            samples[:, :, [0, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21]] = samples[:, :, [
-                0, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21]] * norm_dict['x']['stddev'] + norm_dict['x']['mean']
-            # Y
-            samples[:, :, [1, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22]] = samples[:, :, [
-                1, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22]] * norm_dict['y']['stddev'] + norm_dict['y']['mean']
-            # Z
-            samples[:, :, 2] = samples[:, :, 2] * \
-                norm_dict['z']['stddev'] + norm_dict['z']['mean']
+            # scale recovering
+            samples = normer.recover_data(samples)
+            # plot
             game_visualizer.plot_data(
                 samples, FLAGS.seq_length, file_path=FLAGS.sample_dir + str(global_steps) + '.gif', if_save=True)
 
@@ -202,37 +201,9 @@ def main(_):
         real_data = np.load(FLAGS.data_path)[:, :FLAGS.seq_length, [
             0, 1, 2, 3, 4, 6, 7, 9, 10, 12, 13, 15, 16, 18, 19, 21, 22, 24, 25, 27, 28, 30, 31]]
         print('real_data.shape', real_data.shape)
-        norm_dict = {}
-        # X
-        mean_x = np.mean(
-            real_data[:, :, [0, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21]])
-        stddev_x = np.std(
-            real_data[:, :, [0, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21]])
-        real_data[:, :, [0, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21]] = (
-            real_data[:, :, [0, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21]] - mean_x) / stddev_x
-        norm_dict['x']={}
-        norm_dict['x']['mean'] = mean_x
-        norm_dict['x']['stddev'] = stddev_x
-        # Y
-        mean_y = np.mean(
-            real_data[:, :, [1, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22]])
-        stddev_y = np.std(
-            real_data[:, :, [1, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22]])
-        real_data[:, :, [1, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22]] = (
-            real_data[:, :, [1, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22]] - mean_y) / stddev_y
-        norm_dict['y']={}
-        norm_dict['y']['mean'] = mean_y
-        norm_dict['y']['stddev'] = stddev_y
-        # Z
-        mean_z = np.mean(
-            real_data[:, :, 2])
-        stddev_z = np.std(
-            real_data[:, :, 2])
-        real_data[:, :, 2] = (
-            real_data[:, :, 2] - mean_z) / stddev_z
-        norm_dict['z']={}
-        norm_dict['z']['mean'] = mean_z
-        norm_dict['z']['stddev'] = stddev_z
+
+        # normalization
+        normer = Norm(real_data)
 
         # number of batches
         num_batches = real_data.shape[0] // FLAGS.batch_size
@@ -255,10 +226,10 @@ def main(_):
             # pre-training
             if FLAGS.pretrain_epoches > 0:
                 training(sess, model, real_data, num_batches,
-                         saver, norm_dict, is_pretrain=True)
+                         saver, normer, is_pretrain=True)
 
             # training
-            training(sess, model, real_data, num_batches, saver, norm_dict)
+            training(sess, model, real_data, num_batches, saver, normer)
 
 
 if __name__ == '__main__':

@@ -135,7 +135,7 @@ if __name__ == '__main__':
     parser.add_argument('--save_path', type=str, default='../data/ten_event.gif',
                         help='string, path to save event animation')
     parser.add_argument('--data_path', type=str,
-                        default='../data/NBA-TEAM1.npy', help='string, path of target data')
+                        default='../data/NBA-ALL.npy', help='string, path of target data')
 
     opt = parser.parse_args()
     test()

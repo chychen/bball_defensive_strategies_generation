@@ -23,9 +23,8 @@ class RNN_WGAN(object):
         * output feedback to next input
         * dynamic lstm (diff length problems)
         * multi gpus
-        * leaky relu
         * batchnorm
-        * gradient penalty
+        * 一個分類器來分到底event結束了沒？
     """
 
     def __init__(self, config, graph):
@@ -102,6 +101,9 @@ class RNN_WGAN(object):
                 theta_D.append(v)
         return theta_G, theta_D
 
+    def __leaky_relu(self, features, alpha=0.7):
+        return tf.maximum(features, alpha * features)
+
     def __lstm_cell(self):
         return rnn.LSTMCell(self.hidden_size, use_peepholes=True, initializer=None,
                             forget_bias=1.0, state_is_tuple=True,
@@ -144,16 +146,15 @@ class RNN_WGAN(object):
                 if self.if_feed_previous:
                     concat_values.append(generated_point)
                 input_ = tf.concat(values=concat_values, axis=1)
-                lstm_input = input_  # TODO
-                # with tf.variable_scope('fully_connect_concat') as scope:
-                #     lstm_input = layers.fully_connected(
-                #         inputs=input_,
-                #         num_outputs=self.hidden_size,
-                #         activation_fn=tf.nn.relu,
-                #         weights_initializer=layers.xavier_initializer(
-                #             uniform=False),
-                #         biases_initializer=tf.zeros_initializer(),
-                #         scope=scope)
+                with tf.variable_scope('fully_connect_concat') as scope:
+                    lstm_input = layers.fully_connected(
+                        inputs=input_,
+                        num_outputs=self.hidden_size,
+                        activation_fn=self.__leaky_relu,
+                        weights_initializer=layers.xavier_initializer(
+                            uniform=False),
+                        biases_initializer=tf.zeros_initializer(),
+                        scope=scope)
                 with tf.variable_scope('stack_lstm') as scope:
                     cell_out, state = cell(
                         inputs=lstm_input, state=state, scope=scope)
@@ -161,13 +162,12 @@ class RNN_WGAN(object):
                     generated_point = layers.fully_connected(
                         inputs=cell_out,
                         num_outputs=self.num_features,
-                        activation_fn=None,
+                        activation_fn=self.__leaky_relu,
                         weights_initializer=layers.xavier_initializer(
                             uniform=False),
                         biases_initializer=tf.zeros_initializer(),
                         scope=scope)
                 output_list.append(generated_point)
-                # output_list.append(cell_out)  # TODO
             # stack, axis=1 -> [batch, time, feature]
             result = tf.stack(output_list, axis=1)
             print('result', result)
@@ -194,20 +194,19 @@ class RNN_WGAN(object):
             output_list = []
             if is_fake:
                 tf.get_variable_scope().reuse_variables()
-            blstm_input = inputs  # TODO
-            # for time_step in range(self.seq_length):
-            #     with tf.variable_scope('fully_connect_input') as scope:
-            #         if time_step > 0:
-            #             tf.get_variable_scope().reuse_variables()
-            #         fully_connect_input = layers.fully_connected(
-            #             inputs=inputs[time_step],
-            #             num_outputs=self.hidden_size,
-            #             activation_fn=tf.nn.relu,
-            #             weights_initializer=layers.xavier_initializer(
-            #                 uniform=False),
-            #             biases_initializer=tf.constant_initializer(),
-            #             scope=scope)
-            #     blstm_input.append(fully_connect_input)
+            for time_step in range(self.seq_length):
+                with tf.variable_scope('fully_connect_input') as scope:
+                    if time_step > 0:
+                        tf.get_variable_scope().reuse_variables()
+                    fully_connect_input = layers.fully_connected(
+                        inputs=inputs[time_step],
+                        num_outputs=self.hidden_size,
+                        activation_fn=self.__leaky_relu,
+                        weights_initializer=layers.xavier_initializer(
+                            uniform=False),
+                        biases_initializer=tf.constant_initializer(),
+                        scope=scope)
+                blstm_input.append(fully_connect_input)
             with tf.variable_scope('stack_bi_lstm') as scope:
                 out_blstm_list, _, _ = rnn.stack_bidirectional_rnn(
                     cells_fw=[self.__lstm_cell()
@@ -226,7 +225,7 @@ class RNN_WGAN(object):
                     fconnect = layers.fully_connected(
                         inputs=out_blstm,
                         num_outputs=1,
-                        activation_fn=None,
+                        activation_fn=self.__leaky_relu,
                         weights_initializer=layers.xavier_initializer(
                             uniform=False),
                         biases_initializer=tf.zeros_initializer(),
