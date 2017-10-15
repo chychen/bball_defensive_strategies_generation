@@ -37,24 +37,24 @@ class Norm(object):
             self.__basket_right = [90, 25]
             self.__norm_dict = {}
             # position normalization
-            self.normalize_pos()
+            self.__normalize_pos()
             # player position encoding
-            self.encode_10_onehot()
+            self.__encode_10_onehot()
 
     def get_normed_data(self):
         return self.__real_data
 
     def recover_data(self, norm_data):
         # X
-        samples[:, :, [0, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21]] = samples[:, :, [
+        norm_data[:, :, [0, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21]] = norm_data[:, :, [
             0, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21]] * self.__norm_dict['x']['stddev'] + self.__norm_dict['x']['mean']
         # Y
-        samples[:, :, [1, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22]] = samples[:, :, [
+        norm_data[:, :, [1, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22]] = norm_data[:, :, [
             1, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22]] * self.__norm_dict['y']['stddev'] + self.__norm_dict['y']['mean']
         # Z
-        samples[:, :, 2] = samples[:, :, 2] * \
+        norm_data[:, :, 2] = norm_data[:, :, 2] * \
             self.__norm_dict['z']['stddev'] + self.__norm_dict['z']['mean']
-        return samples
+        return norm_data
 
     def extract_features(self, t_data):
         """ extract 252 features from raw data, including
@@ -100,7 +100,7 @@ class Norm(object):
             t_onehot = t_data[:, :, 23:23 + 50]
             return tf.concat([t_pos, t_speed, t_correlation, t_onehot], axis=-1)
 
-    def normalize_pos(self):
+    def __normalize_pos(self):
         """ directly normalize player x,y,z on self.__real_data
         """
         axis_list = ['x', 'y', 'z']
@@ -130,7 +130,7 @@ class Norm(object):
                 self.__norm_dict[axis_]['mean'] = mean_
                 self.__norm_dict[axis_]['stddev'] = stddev_
 
-    def encode_10_onehot(self):
+    def __encode_10_onehot(self):
         """ directly add player positions one-hot vec on self.__real_data
 
         note

@@ -34,8 +34,8 @@ tf.app.flags.DEFINE_string('restore_path', None,
 # input parameters
 tf.app.flags.DEFINE_integer('seq_length', 100,
                             "the maximum length of one training data")
-tf.app.flags.DEFINE_integer('num_features', 23,
-                            "3 (ball x y z) + 10 (players) * 2 (x and y)")
+tf.app.flags.DEFINE_integer('num_features', 23 + 50,
+                            "3 (ball x y z) + 10 (players) * 2 (x and y) + 50 (player positions as 10 5-dims-one-hot)")
 tf.app.flags.DEFINE_integer('latent_dims', 23,
                             "dimensions of latant variable")
 # training parameters

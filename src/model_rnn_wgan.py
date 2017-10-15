@@ -12,6 +12,7 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.contrib import rnn
 from tensorflow.contrib import layers
+from utils import Norm
 
 
 class RNN_WGAN(object):
@@ -20,11 +21,13 @@ class RNN_WGAN(object):
         * to decide latent variable feature dimentions, 11 for now
         * data precision of float32/  float64
         * num of hidden units
-        * output feedback to next input
         * dynamic lstm (diff length problems)
         * multi gpus
         * batchnorm
         * 一個分類器來分到底event結束了沒？
+        * peephole : pros and cons
+        * output feed forward : pros and cons
+        * gaussian noise than uniform
     """
 
     def __init__(self, config, graph):
@@ -44,6 +47,7 @@ class RNN_WGAN(object):
         graph : 
             tensorflow default graph
         """
+        self.normer = Norm()
         # hyper-parameters
         self.batch_size = config.batch_size
         self.log_dir = config.log_dir
@@ -66,8 +70,11 @@ class RNN_WGAN(object):
             dtype=tf.bool, shape=[], name='if_pretrain')
         # model
         self.__G_sample = self.__G(self.__z, seq_len=None)
-        D_real = self.__D(self.__X, seq_len=None)
-        D_fake = self.__D(self.__G_sample, is_fake=True)
+        # feature extraction
+        real_extracted = self.normer.extract_features(self.__X)
+        fake_extracted = self.normer.extract_features(self.__G_sample)
+        D_real = self.__D(real_extracted, seq_len=None)
+        D_fake = self.__D(fake_extracted, is_fake=True)
         # loss function
         self.__G_loss = self.__G_loss_fn(D_fake)
         self.__D_loss = self.__D_loss_fn(
@@ -134,6 +141,7 @@ class RNN_WGAN(object):
             generated_point = tf.random_uniform(
                 shape=[self.batch_size, self.num_features], minval=0.0, maxval=1.0)
             # model
+            first_player_fc = None
             output_list = []
             for time_step in range(self.seq_length):
                 if time_step > 0:
@@ -158,8 +166,8 @@ class RNN_WGAN(object):
                 with tf.variable_scope('stack_lstm') as scope:
                     cell_out, state = cell(
                         inputs=lstm_input, state=state, scope=scope)
-                with tf.variable_scope('fully_connect_output') as scope:
-                    generated_point = layers.fully_connected(
+                with tf.variable_scope('position_fc') as scope:
+                    position_fc = layers.fully_connected(
                         inputs=cell_out,
                         num_outputs=self.num_features,
                         activation_fn=self.__leaky_relu,
@@ -167,6 +175,21 @@ class RNN_WGAN(object):
                             uniform=False),
                         biases_initializer=tf.zeros_initializer(),
                         scope=scope)
+                with tf.variable_scope('player_fc') as scope:
+                    player_fc = layers.fully_connected(
+                        inputs=cell_out,
+                        num_outputs=50,
+                        activation_fn=self.__leaky_relu,
+                        weights_initializer=layers.xavier_initializer(
+                            uniform=False),
+                        biases_initializer=tf.zeros_initializer(),
+                        scope=scope)
+                if time_step == 0:
+                    # only on first frame                    
+                    first_player_fc = player_fc
+                    print(first_player_fc)
+                    exit()
+                
                 output_list.append(generated_point)
             # stack, axis=1 -> [batch, time, feature]
             result = tf.stack(output_list, axis=1)
