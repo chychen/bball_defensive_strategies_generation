@@ -73,12 +73,13 @@ class RNN_WGAN(object):
         # feature extraction
         real_extracted = self.normer.extract_features(self.__X)
         fake_extracted = self.normer.extract_features(self.__G_sample)
+
         D_real = self.__D(real_extracted, seq_len=None)
         D_fake = self.__D(fake_extracted, is_fake=True)
         # loss function
         self.__G_loss = self.__G_loss_fn(D_fake)
         self.__D_loss = self.__D_loss_fn(
-            self.__X, self.__G_sample, D_fake, D_real, self.penalty_lambda)
+            real_extracted, fake_extracted, D_fake, D_real, self.penalty_lambda)
         # optimizer
         theta_G, theta_D = self.__get_var_list()
         self.__G_solver = (tf.train.AdamOptimizer(learning_rate=self.learning_rate, beta1=0.5)
@@ -141,9 +142,10 @@ class RNN_WGAN(object):
             generated_point = tf.random_uniform(
                 shape=[self.batch_size, self.num_features], minval=0.0, maxval=1.0)
             # model
-            first_player_fc = None
             output_list = []
+            first_player_fc = []
             for time_step in range(self.seq_length):
+                fc_merge_list = []
                 if time_step > 0:
                     tf.get_variable_scope().reuse_variables()
                 # if pretrain -> feed groudtruth as last output
@@ -169,27 +171,31 @@ class RNN_WGAN(object):
                 with tf.variable_scope('position_fc') as scope:
                     position_fc = layers.fully_connected(
                         inputs=cell_out,
-                        num_outputs=self.num_features,
+                        num_outputs=23,
                         activation_fn=self.__leaky_relu,
                         weights_initializer=layers.xavier_initializer(
                             uniform=False),
                         biases_initializer=tf.zeros_initializer(),
                         scope=scope)
+                    fc_merge_list.append(position_fc)
                 with tf.variable_scope('player_fc') as scope:
                     player_fc = layers.fully_connected(
                         inputs=cell_out,
-                        num_outputs=50,
+                        num_outputs=70,
                         activation_fn=self.__leaky_relu,
                         weights_initializer=layers.xavier_initializer(
                             uniform=False),
                         biases_initializer=tf.zeros_initializer(),
                         scope=scope)
-                if time_step == 0:
-                    # only on first frame                    
-                    first_player_fc = player_fc
-                    print(first_player_fc)
-                    exit()
-                
+                    if time_step == 0:
+                        # only on first frame
+                        with tf.name_scope('10_softmax') as scope:
+                            for i in range(0, 70, 7):
+                                softmax_out = tf.nn.softmax(player_fc[:, i:i + 7])
+                                first_player_fc.append(softmax_out)
+                            first_player_fc = tf.concat(first_player_fc, axis=-1)
+                    fc_merge_list.append(first_player_fc)
+                generated_point = tf.concat(fc_merge_list, axis=-1)
                 output_list.append(generated_point)
             # stack, axis=1 -> [batch, time, feature]
             result = tf.stack(output_list, axis=1)
@@ -200,7 +206,7 @@ class RNN_WGAN(object):
         """
         Inputs
         ------
-        inputs : float, shape=[batch, length, 23]
+        inputs : float, shape=[batch, length, 252]
             real(from data) or fake(from G)
         seq_len : 
             temparily not used
@@ -265,23 +271,25 @@ class RNN_WGAN(object):
     def __G_loss_fn(self, D_fake):
         """ G loss
         """
-        loss = -tf.reduce_mean(D_fake)
+        with tf.name_scope('G_loss') as scope:
+            loss = -tf.reduce_mean(D_fake)
         return loss
 
     def __D_loss_fn(self, __X, __G_sample, D_fake, D_real, penalty_lambda):
         """ D loss
         """
-        # grad_pen, base on paper (Improved WGAN)
-        epsilon = tf.random_uniform(
-            [self.batch_size, 1, 1], minval=0.0, maxval=1.0)
-        __X_inter = epsilon * __X + (1.0 - epsilon) * __G_sample
-        grad = tf.gradients(self.__D(__X_inter, is_fake=True), [__X_inter])[0]
-        sum_ = tf.reduce_sum(tf.square(grad), axis=[1, 2])
-        grad_norm = tf.sqrt(sum_)
-        grad_pen = tf.reduce_mean(tf.square(grad_norm - 1.0))
+        with tf.name_scope('D_loss') as scope:
+            # grad_pen, base on paper (Improved WGAN)
+            epsilon = tf.random_uniform(
+                [self.batch_size, 1, 1], minval=0.0, maxval=1.0)
+            __X_inter = epsilon * __X + (1.0 - epsilon) * __G_sample
+            grad = tf.gradients(self.__D(__X_inter, is_fake=True), [__X_inter])[0]
+            sum_ = tf.reduce_sum(tf.square(grad), axis=[1, 2])
+            grad_norm = tf.sqrt(sum_)
+            grad_pen = tf.reduce_mean(tf.square(grad_norm - 1.0))
 
-        loss = tf.reduce_mean(
-            D_fake) - tf.reduce_mean(D_real) + penalty_lambda * grad_pen
+            loss = tf.reduce_mean(
+                D_fake) - tf.reduce_mean(D_real) + penalty_lambda * grad_pen
         return loss
 
     def G_step(self, sess, latent_inputs, if_pretrain=False, real_data=None):

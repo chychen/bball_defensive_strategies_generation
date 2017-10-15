@@ -27,15 +27,15 @@ tf.app.flags.DEFINE_string('checkpoints_dir', 'v10/checkpoints/',
                            "checkpoints dir")
 tf.app.flags.DEFINE_string('sample_dir', 'v10/sample/',
                            "directory to save generative result")
-tf.app.flags.DEFINE_string('data_path', '../data/NBA-ALL.npy',
+tf.app.flags.DEFINE_string('data_path', '../data/FEATURES.npy',
                            "summary directory")
 tf.app.flags.DEFINE_string('restore_path', None,
                            "path of saving model eg: checkpoints/model.ckpt-5")
 # input parameters
 tf.app.flags.DEFINE_integer('seq_length', 100,
                             "the maximum length of one training data")
-tf.app.flags.DEFINE_integer('num_features', 23 + 50,
-                            "3 (ball x y z) + 10 (players) * 2 (x and y) + 50 (player positions as 10 5-dims-one-hot)")
+tf.app.flags.DEFINE_integer('num_features', 23 + 70,
+                            "3 (ball x y z) + 10 (players) * 2 (x and y) + 70 (player positions as 10 7-dims-one-hot)")
 tf.app.flags.DEFINE_integer('latent_dims', 23,
                             "dimensions of latant variable")
 # training parameters
@@ -198,12 +198,15 @@ def training(sess, model, real_data, num_batches, saver, normer, is_pretrain=Fal
 def main(_):
     with tf.get_default_graph().as_default() as graph:
         # load data and remove useless z dimension of players in data
-        real_data = np.load(FLAGS.data_path)[:, :FLAGS.seq_length, [
-            0, 1, 2, 3, 4, 6, 7, 9, 10, 12, 13, 15, 16, 18, 19, 21, 22, 24, 25, 27, 28, 30, 31]]
-        print('real_data.shape', real_data.shape)
+        # real_data = np.load(FLAGS.data_path)[:, :FLAGS.seq_length, [
+        #     0, 1, 2, 3, 4, 6, 7, 9, 10, 12, 13, 15, 16, 18, 19, 21, 22, 24, 25, 27, 28, 30, 31]]
+        # print('real_data.shape', real_data.shape)
+        real_data = np.ones(shape=[5120, FLAGS.seq_length, 11, 4])
 
         # normalization
         normer = Norm(real_data)
+        real_data = normer.get_normed_data()
+        print(real_data.shape)
 
         # number of batches
         num_batches = real_data.shape[0] // FLAGS.batch_size

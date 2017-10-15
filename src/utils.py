@@ -61,17 +61,17 @@ class Norm(object):
         * x y z positions = 23
         * x y z speed = 23, first frame's speed should be zero
         * x y correlation of 10 players, ball, and 2 basket = (13*13-13)/2*2=156
-        * 10 one-hot vector as player position = 50
+        * 10 one-hot vector as player position = 70
 
         params
         ------
-        t_data : tensor, float, shape=[batch, length, features=23+50]
+        t_data : tensor, float, shape=[batch, length, features=23+70]
             the sequence data
         note
         ----
-        features : 23+50
+        features : 23+70
             23 = 10 players + ball
-            50 = 10 one-hot vector as player position
+            70 = 10 7dims-one-hot vector as player position
         """
         with tf.name_scope('extract') as scope:
             # info
@@ -96,8 +96,8 @@ class Norm(object):
                         t_vec = t_x[:, :, i] - t_x[:, :, j]
                         t_correlation.append(t_vec)
             t_correlation = tf.stack(t_correlation, axis=-1)
-            # 10 one-hot vector as player position = 50
-            t_onehot = t_data[:, :, 23:23 + 50]
+            # 10 one-hot vector as player position = 70
+            t_onehot = t_data[:, :, 23:23 + 70]
             return tf.concat([t_pos, t_speed, t_correlation, t_onehot], axis=-1)
 
     def __normalize_pos(self):
@@ -137,16 +137,18 @@ class Norm(object):
         ----
         player position :
             * BALL <-> 0
-            * SF <-> 1
-            * PF <-> 2
-            * C <-> 3
-            * PG <-> 4
-            * SG <-> 5
+            * F <-> 1
+            * G <-> 2
+            * C-F <-> 3
+            * F-G <-> 4
+            * F-C <-> 5
+            * C <-> 6
+            * G-F <-> 7
         """
         player_position = self.__real_data[:, :,
                                            1:, -1].astype(np.int)  # without ball
         ten_onehot = np.zeros(
-            shape=[player_position.shape[0], player_position.shape[1], 10, 5])
+            shape=[player_position.shape[0], player_position.shape[1], 10, 7])
         for i in range(player_position.shape[0]):
             for j in range(player_position.shape[1]):
                 for k in range(player_position.shape[2]):
@@ -160,9 +162,9 @@ class Norm(object):
                 # players
                 self.__real_data[:, :, 1:, :2].reshape(
                     [self.__real_data.shape[0], self.__real_data.shape[1], 10 * 2]),
-                # player position as ten 5-dims-one-hot vector
+                # player position as ten 7dims-one-hot vector
                 ten_onehot.reshape(
-                    [player_position.shape[0], player_position.shape[1], 10 * 5])
+                    [player_position.shape[0], player_position.shape[1], 10 * 7])
             ], axis=-1
         )
 
@@ -170,7 +172,7 @@ class Norm(object):
 def testing():
     dummy = np.ones(shape=[512, 100, 11, 4])
     normer = Norm(dummy)
-    dummy_samples = tf.ones(shape=[512, 100, 23 + 50])
+    dummy_samples = tf.ones(shape=[512, 100, 23 + 70])
     normer.extract_features(dummy_samples)
 
 
