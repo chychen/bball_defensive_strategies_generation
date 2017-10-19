@@ -92,10 +92,14 @@ class RNN_WGAN(object):
         self.__summary_loss = tf.summary.scalar('loss', self.__loss_V)
 
         Dops = []
-        Dops.append(tf.summary.scalar('F_real', F_real, collections=['D_Loss']))
-        Dops.append(tf.summary.scalar('F_fake', F_fake, collections=['D_Loss']))
-        Dops.append(tf.summary.scalar('grad_pen', grad_pen, collections=['D_Loss']))
-        self.__summary_D_op = tf.summary.merge(inputs=Dops, collections=['D_Loss'])
+        Dops.append(tf.summary.scalar(
+            'F_real', F_real, collections=['D_Loss']))
+        Dops.append(tf.summary.scalar(
+            'F_fake', F_fake, collections=['D_Loss']))
+        Dops.append(tf.summary.scalar(
+            'grad_pen', grad_pen, collections=['D_Loss']))
+        self.__summary_D_op = tf.summary.merge(
+            inputs=Dops, collections=['D_Loss'])
         # summary writer
         self.G_summary_writer = tf.summary.FileWriter(
             self.log_dir + 'G', graph=graph)
@@ -309,12 +313,14 @@ class RNN_WGAN(object):
         """ train one batch on G
         """
         feed_dict = {self.__z: latent_inputs,
-                     self.__if_pretrain: if_pretrain, self.__X: real_data}
+                     self.__X: real_data,
+                     self.__if_pretrain: if_pretrain}
         loss, global_steps, _ = sess.run(
             [self.__G_loss, self.__global_steps,
                 self.__G_solver], feed_dict=feed_dict)
         # log
-        summary = sess.run(self.__summary_loss, feed_dict={self.__loss_V: loss})
+        summary = sess.run(self.__summary_loss, feed_dict={
+                           self.__loss_V: loss})
         self.G_summary_writer.add_summary(
             summary, global_step=global_steps)
         return loss, global_steps
@@ -323,27 +329,31 @@ class RNN_WGAN(object):
         """ train one batch on D
         """
         feed_dict = {self.__z: latent_inputs,
-                     self.__X: real_data, self.__if_pretrain: if_pretrain}
+                     self.__X: real_data,
+                     self.__if_pretrain: if_pretrain}
         loss, global_steps, _, summary_D = sess.run(
             [self.__D_loss, self.__global_steps,
                 self.__D_solver, self.__summary_D_op], feed_dict=feed_dict)
         # log
-        summary_loss = sess.run(self.__summary_loss, feed_dict={self.__loss_V: loss})
+        summary_loss = sess.run(self.__summary_loss, feed_dict={
+                                self.__loss_V: loss})
         self.D_summary_writer.add_summary(
             summary_loss, global_step=global_steps)
         self.D_summary_writer.add_summary(
             summary_D, global_step=global_steps)
         return loss, global_steps
 
-    def D_log_valid_loss(self, sess, latent_inputs, real_data):
+    def D_log_valid_loss(self, sess, latent_inputs, real_data, if_pretrain=False):
         """ one batch valid loss
         """
         feed_dict = {self.__z: latent_inputs,
-                     self.__X: real_data}
+                     self.__X: real_data,
+                     self.__if_pretrain: if_pretrain}
         loss, global_steps = sess.run(
             [self.__D_loss, self.__global_steps], feed_dict=feed_dict)
         # log
-        summary_loss = sess.run(self.__summary_loss, feed_dict={self.__loss_V: loss})
+        summary_loss = sess.run(self.__summary_loss, feed_dict={
+                                self.__loss_V: loss})
         self.D_valid_summary_writer.add_summary(
             summary_loss, global_step=global_steps)
         return loss
@@ -352,7 +362,8 @@ class RNN_WGAN(object):
         """ to generate result
         """
         feed_dict = {self.__z: latent_inputs,
-                     self.__if_pretrain: if_pretrain, self.__X: real_data}
+                     self.__X: real_data,
+                     self.__if_pretrain: if_pretrain}
         result = sess.run(self.__G_sample, feed_dict=feed_dict)
         return result
 

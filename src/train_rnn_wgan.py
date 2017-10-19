@@ -22,11 +22,11 @@ from utils import Norm
 FLAGS = tf.app.flags.FLAGS
 
 # path parameters
-tf.app.flags.DEFINE_string('log_dir', 'v11/log/',
+tf.app.flags.DEFINE_string('log_dir', 'v12/log/',
                            "summary directory")
-tf.app.flags.DEFINE_string('checkpoints_dir', 'v11/checkpoints/',
+tf.app.flags.DEFINE_string('checkpoints_dir', 'v12/checkpoints/',
                            "checkpoints dir")
-tf.app.flags.DEFINE_string('sample_dir', 'v11/sample/',
+tf.app.flags.DEFINE_string('sample_dir', 'v12/sample/',
                            "directory to save generative result")
 tf.app.flags.DEFINE_string('data_path', '../data/FEATURES.npy',
                            "summary directory")
@@ -52,7 +52,7 @@ tf.app.flags.DEFINE_integer('batch_size', 64,
                             "batch size")
 tf.app.flags.DEFINE_float('learning_rate', 1e-4,
                           "learning rate")
-tf.app.flags.DEFINE_integer('hidden_size', 230,
+tf.app.flags.DEFINE_integer('hidden_size', 23,
                             "hidden size of LSTM")
 tf.app.flags.DEFINE_integer('rnn_layers', 2,
                             "num of layers for rnn")
@@ -132,10 +132,9 @@ def z_samples():
 def training(sess, model, real_data, num_batches, saver, normer, is_pretrain=False):
     """
     """
-
     shuffled_indexes = np.random.permutation(real_data.shape[0])
     real_data = real_data[shuffled_indexes]
-    real_data, valid_data = np.split(real_data, [9])
+    real_data, valid_data = np.split(real_data, [real_data.shape[0] // 9])
     print(real_data.shape)
     print(valid_data.shape)
     num_batches = num_batches // 10 * 9
@@ -185,7 +184,7 @@ def training(sess, model, real_data, num_batches, saver, normer, is_pretrain=Fal
                 valid_data_batch = valid_data[data_idx:data_idx +
                                               FLAGS.batch_size]
                 D_valid_loss_mean = model.D_log_valid_loss(
-                    sess, z_samples(), real_data_batch)
+                    sess, z_samples(), valid_data_batch)
             # train G
             G_loss_mean, global_steps = model.G_step(
                 sess, z_samples(), is_pretrain, real_data_batch)
