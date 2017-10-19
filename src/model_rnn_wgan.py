@@ -96,13 +96,13 @@ class RNN_WGAN(object):
         Dops.append(tf.summary.scalar('F_fake', F_fake, collections=['D_Loss']))
         Dops.append(tf.summary.scalar('grad_pen', grad_pen, collections=['D_Loss']))
         self.__summary_D_op = tf.summary.merge(inputs=Dops, collections=['D_Loss'])
-        # self.__summary_G_op = tf.summary.scalar('loss', self.__loss_V)
-        # self.__summary_D_op = tf.summary.scalar('loss', self.__loss_V)
         # summary writer
         self.G_summary_writer = tf.summary.FileWriter(
             self.log_dir + 'G', graph=graph)
         self.D_summary_writer = tf.summary.FileWriter(
             self.log_dir + 'D', graph=graph)
+        self.D_valid_summary_writer = tf.summary.FileWriter(
+            self.log_dir + 'D_valid', graph=graph)
 
     def __get_var_list(self):
         """ to get both Generator's and Discriminator's trainable variables
@@ -334,6 +334,19 @@ class RNN_WGAN(object):
         self.D_summary_writer.add_summary(
             summary_D, global_step=global_steps)
         return loss, global_steps
+
+    def D_log_valid_loss(self, sess, latent_inputs, real_data):
+        """ one batch valid loss
+        """
+        feed_dict = {self.__z: latent_inputs,
+                     self.__X: real_data}
+        loss, global_steps = sess.run(
+            [self.__D_loss, self.__global_steps], feed_dict=feed_dict)
+        # log
+        summary_loss = sess.run(self.__summary_loss, feed_dict={self.__loss_V: loss})
+        self.D_valid_summary_writer.add_summary(
+            summary_loss, global_step=global_steps)
+        return loss
 
     def generate(self, sess, latent_inputs, if_pretrain=False, real_data=None):
         """ to generate result

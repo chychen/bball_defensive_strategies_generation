@@ -44,6 +44,10 @@ tf.app.flags.DEFINE_integer('total_epoches', 3000,
                             "num of ephoches")
 tf.app.flags.DEFINE_integer('num_train_D', 5,
                             "num of times of training D before train G")
+tf.app.flags.DEFINE_integer('num_pretrain_D', 10,
+                            "num of ephoch to train D before train G")
+tf.app.flags.DEFINE_integer('freq_train_D', 50,
+                            "freqence of num ephoch to train D more")
 tf.app.flags.DEFINE_integer('batch_size', 64,
                             "batch size")
 tf.app.flags.DEFINE_float('learning_rate', 1e-4,
@@ -91,6 +95,8 @@ class TrainingConfig(object):
         self.penalty_lambda = FLAGS.penalty_lambda
         self.if_feed_previous = FLAGS.if_feed_previous
         self.num_train_D = FLAGS.num_train_D
+        self.num_pretrain_D = FLAGS.num_pretrain_D
+        self.freq_train_D = FLAGS.freq_train_D
         self.pretrain_epoches = FLAGS.pretrain_epoches
 
     def show(self):
@@ -112,6 +118,8 @@ class TrainingConfig(object):
         print("penalty_lambda:", self.penalty_lambda)
         print("if_feed_previous:", self.if_feed_previous)
         print("num_train_D:", self.num_train_D)
+        print("num_pretrain_D:", self.num_pretrain_D)
+        print("freq_train_D:", self.freq_train_D)
         print("pretrain_epoches:", self.pretrain_epoches)
 
 
@@ -124,6 +132,15 @@ def z_samples():
 def training(sess, model, real_data, num_batches, saver, normer, is_pretrain=False):
     """
     """
+
+    shuffled_indexes = np.random.permutation(real_data.shape[0])
+    real_data = real_data[shuffled_indexes]
+    real_data, valid_data = np.split(real_data, [9])
+    print(real_data.shape)
+    print(valid_data.shape)
+    num_batches = num_batches // 10 * 9
+    num_valid_batches = num_batches // 10 * 1
+
     if is_pretrain:
         num_epoches = FLAGS.pretrain_epoches
     else:
@@ -141,9 +158,8 @@ def training(sess, model, real_data, num_batches, saver, normer, is_pretrain=Fal
         batch_id = 0
         while batch_id < num_batches - FLAGS.num_train_D:
             real_data_batch = None
-            # TODO make sure fairly train model on every batch
-            if epoch_id < 10 or (epoch_id + 1) % 50 == 0:
-                num_train_D = num_batches * 5
+            if epoch_id < FLAGS.num_pretrain_D or (epoch_id + 1) % FLAGS.freq_train_D == 0:
+                num_train_D = num_batches * 5  # TODO
             else:
                 num_train_D = FLAGS.num_train_D
             for id_ in range(num_train_D):
@@ -163,6 +179,13 @@ def training(sess, model, real_data, num_batches, saver, normer, is_pretrain=Fal
                     sess, z_samples(), real_data_batch, is_pretrain)
                 batch_id += 1
                 log_counter += 1
+                # log validation loss
+                data_idx = global_steps * \
+                    FLAGS.batch_size % (valid_data.shape[0] - FLAGS.batch_size)
+                valid_data_batch = valid_data[data_idx:data_idx +
+                                              FLAGS.batch_size]
+                D_valid_loss_mean = model.D_log_valid_loss(
+                    sess, z_samples(), real_data_batch)
             # train G
             G_loss_mean, global_steps = model.G_step(
                 sess, z_samples(), is_pretrain, real_data_batch)
@@ -172,10 +195,11 @@ def training(sess, model, real_data, num_batches, saver, normer, is_pretrain=Fal
             if log_counter >= FLAGS.log_freq:
                 end_time = time.time()
                 log_counter = 0
-                print("%d, epoches, %d steps, mean D_loss: %f, mean G_loss: %f, time cost: %f(sec)" %
+                print("%d, epoches, %d steps, mean D_loss: %f, mean D_valid_loss: %f, mean G_loss: %f, time cost: %f(sec)" %
                       (epoch_id,
                        global_steps,
                        D_loss_mean,
+                       D_valid_loss_mean,
                        G_loss_mean,
                        (end_time - start_time)))
                 start_time = time.time()  # save checkpoints
