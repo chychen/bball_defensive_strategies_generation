@@ -4,6 +4,7 @@ data description:
     event by envet, with 300 sequence for each. (about 75 seconds)
     shape as [number of events, max sequence length, 33 dimensions(1 ball and 10 players x,y,z)]
     save it under the relative path './data/' before training
+    # TODO visulize the player positions on gif file
 """
 from __future__ import absolute_import
 from __future__ import division
@@ -62,7 +63,7 @@ tf.app.flags.DEFINE_integer('save_model_freq', 50,
                             "num of epoches to save model")
 tf.app.flags.DEFINE_integer('save_result_freq', 25,
                             "num of epoches to save gif")
-tf.app.flags.DEFINE_integer('log_freq', 200,
+tf.app.flags.DEFINE_integer('log_freq', 173,
                             "num of steps to log")
 
 
@@ -198,10 +199,8 @@ def training(sess, model, real_data, num_batches, saver, normer, is_pretrain=Fal
 def main(_):
     with tf.get_default_graph().as_default() as graph:
         # load data and remove useless z dimension of players in data
-        # real_data = np.load(FLAGS.data_path)[:, :FLAGS.seq_length, [
-        #     0, 1, 2, 3, 4, 6, 7, 9, 10, 12, 13, 15, 16, 18, 19, 21, 22, 24, 25, 27, 28, 30, 31]]
-        # print('real_data.shape', real_data.shape)
-        real_data = np.ones(shape=[5120, FLAGS.seq_length, 11, 4])
+        real_data = np.load(FLAGS.data_path)
+        print('real_data.shape', real_data.shape)
 
         # normalization
         normer = Norm(real_data)

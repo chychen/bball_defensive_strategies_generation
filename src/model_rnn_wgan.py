@@ -206,7 +206,7 @@ class RNN_WGAN(object):
         """
         Inputs
         ------
-        inputs : float, shape=[batch, length, 252]
+        inputs : float, shape=[batch, length, 272]
             real(from data) or fake(from G)
         seq_len : 
             temparily not used

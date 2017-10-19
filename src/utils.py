@@ -57,7 +57,7 @@ class Norm(object):
         return norm_data
 
     def extract_features(self, t_data):
-        """ extract 252 features from raw data, including
+        """ extract 272 features from raw data, including
         * x y z positions = 23
         * x y z speed = 23, first frame's speed should be zero
         * x y correlation of 10 players, ball, and 2 basket = (13*13-13)/2*2=156
@@ -153,7 +153,8 @@ class Norm(object):
             for j in range(player_position.shape[1]):
                 for k in range(player_position.shape[2]):
                     ten_onehot[i, j, k, player_position[i][j][k] - 1] = 1
-                    
+        # print(self.__real_data[10, 10, :, 3])
+        # print(ten_onehot[10, 10, :, :])
         self.__real_data = np.concatenate(
             [
                 # ball
@@ -168,6 +169,12 @@ class Norm(object):
             ], axis=-1
         )
 
+def testing_real():
+    real_data = np.load("../data/FEATURES.npy")
+    print('real_data.shape', real_data.shape)
+    normer = Norm(real_data)
+    real_data = normer.get_normed_data()
+    print('real_data.shape', real_data.shape)
 
 def testing():
     dummy = np.ones(shape=[512, 100, 11, 4])
@@ -177,4 +184,4 @@ def testing():
 
 
 if __name__ == '__main__':
-    testing()
+    testing_real()

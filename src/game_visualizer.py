@@ -12,6 +12,18 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from matplotlib.patches import Circle, Rectangle, Arc
 
+from utils import Norm
+
+# * B <-> 0
+# * F <-> 1
+# * G <-> 2
+# * C-F <-> 3
+# * F-G <-> 4
+# * F-C <-> 5
+# * C <-> 6
+# * G-F <-> 7
+PP_LIST = ['B', 'F', 'G', 'C-F', 'F-G', 'F-C', 'C', 'G-F']
+
 
 def update_all(frame_id, player_circles, ball_circle, annotations, data):
     """ 
@@ -38,6 +50,7 @@ def update_all(frame_id, player_circles, ball_circle, annotations, data):
     # ball
     ball_circle.center = data[frame_id // max_length, frame_id %
                               max_length, 0], data[frame_id // max_length, frame_id % max_length, 1]
+    ball_circle.set_radius(1.0 + data[frame_id // max_length, frame_id % max_length, 2] / 10.0)
     annotations[10].set_position(ball_circle.center)
     return
 
@@ -46,8 +59,8 @@ def plot_data(data, length, file_path=None, if_save=False, fps=4, dpi=48):
     """
     Inputs
     ------
-    data : float, shape=[amount, length, 23]
-        23 = ball's xyz + 10 players's xy
+    data : float, shape=[amount, length, 23 + 70]
+        93 = ball's xyz + 10 players's xy + 10 * 7-dims-one-hot 
     length : int
         how long would you like to plot
     file_path : str
@@ -62,10 +75,15 @@ def plot_data(data, length, file_path=None, if_save=False, fps=4, dpi=48):
     ------
     """
     court = plt.imread("../data/court.png")  # 500*939
-
-    # 5 A-Team players + 5 B-Team players + 1 ball
-    name_list = ['A1', 'A2', 'A3', 'A4',
-                 'A5', 'B1', 'B2', 'B3', 'B4', 'B5', ' ']
+    # get ten 7-dims-one-hot of player positions
+    onehot_vec = data[0, 0, 23:].reshape([10, 7])
+    players_list = np.argmax(onehot_vec, axis=-1) + 1  # 0 <-> Ball
+    ball_value = np.zeros(shape=[1])
+    name_scalar_list = np.concatenate([players_list, ball_value], axis=-1)
+    print(name_scalar_list.shape)
+    name_list = []
+    for v in name_scalar_list:
+        name_list.append(PP_LIST[int(v)])
 
     # team A -> read circle, team B -> blue circle, ball -> small green circle
     player_circles = []
@@ -112,9 +130,11 @@ def test():
     """
     test only
     """
-    # load data and remove useless z dimension of players in data
-    train_data = np.load(opt.data_path)[:, :opt.seq_length, [
-        0, 1, 2, 3, 4, 6, 7, 9, 10, 12, 13, 15, 16, 18, 19, 21, 22, 24, 25, 27, 28, 30, 31]]
+    train_data = np.load(opt.data_path)
+    normer = Norm(train_data)
+    train_data = normer.get_normed_data()
+    train_data = normer.recover_data(train_data)
+
     plot_data(train_data, length=opt.length,
               file_path=opt.save_path, if_save=opt.save)
     print('opt.save', opt.save)
@@ -126,16 +146,16 @@ def test():
 if __name__ == '__main__':
     # parameters
     parser = argparse.ArgumentParser(description='NBA Games visulization')
-    parser.add_argument('--save', type=bool, default=False,
+    parser.add_argument('--save', type=bool, default=True,
                         help='bool, if save as gif file')
-    parser.add_argument('--length', type=int, default=300,
+    parser.add_argument('--length', type=int, default=100,
                         help='how many frames do you want to plot')
     parser.add_argument('--seq_length', type=int, default=100,
                         help='how long for each event')
     parser.add_argument('--save_path', type=str, default='../data/ten_event.gif',
                         help='string, path to save event animation')
     parser.add_argument('--data_path', type=str,
-                        default='../data/NBA-ALL.npy', help='string, path of target data')
+                        default='../data/FEATURES.npy', help='string, path of target data')
 
     opt = parser.parse_args()
     test()
