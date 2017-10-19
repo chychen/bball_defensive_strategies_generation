@@ -78,7 +78,7 @@ class RNN_WGAN(object):
         D_fake = self.__D(fake_extracted, is_fake=True)
         # loss function
         self.__G_loss = self.__G_loss_fn(D_fake)
-        self.__D_loss = self.__D_loss_fn(
+        self.__D_loss, F_real, F_fake, grad_pen = self.__D_loss_fn(
             real_extracted, fake_extracted, D_fake, D_real, self.penalty_lambda)
         # optimizer
         theta_G, theta_D = self.__get_var_list()
@@ -89,7 +89,15 @@ class RNN_WGAN(object):
         # summary
         # use self.__loss_V to draw both D's and G's loss on same plot
         self.__loss_V = tf.Variable(0.0)
-        self.__merged_op = tf.summary.scalar('loss', self.__loss_V)
+        self.__summary_loss = tf.summary.scalar('loss', self.__loss_V)
+
+        Dops = []
+        Dops.append(tf.summary.scalar('F_real', F_real, collections=['D_Loss']))
+        Dops.append(tf.summary.scalar('F_fake', F_fake, collections=['D_Loss']))
+        Dops.append(tf.summary.scalar('grad_pen', grad_pen, collections=['D_Loss']))
+        self.__summary_D_op = tf.summary.merge(inputs=Dops, collections=['D_Loss'])
+        # self.__summary_G_op = tf.summary.scalar('loss', self.__loss_V)
+        # self.__summary_D_op = tf.summary.scalar('loss', self.__loss_V)
         # summary writer
         self.G_summary_writer = tf.summary.FileWriter(
             self.log_dir + 'G', graph=graph)
@@ -191,9 +199,11 @@ class RNN_WGAN(object):
                         # only on first frame
                         with tf.name_scope('10_softmax') as scope:
                             for i in range(0, 70, 7):
-                                softmax_out = tf.nn.softmax(player_fc[:, i:i + 7])
+                                softmax_out = tf.nn.softmax(
+                                    player_fc[:, i:i + 7])
                                 first_player_fc.append(softmax_out)
-                            first_player_fc = tf.concat(first_player_fc, axis=-1)
+                            first_player_fc = tf.concat(
+                                first_player_fc, axis=-1)
                     fc_merge_list.append(first_player_fc)
                 generated_point = tf.concat(fc_merge_list, axis=-1)
                 output_list.append(generated_point)
@@ -283,14 +293,17 @@ class RNN_WGAN(object):
             epsilon = tf.random_uniform(
                 [self.batch_size, 1, 1], minval=0.0, maxval=1.0)
             __X_inter = epsilon * __X + (1.0 - epsilon) * __G_sample
-            grad = tf.gradients(self.__D(__X_inter, is_fake=True), [__X_inter])[0]
+            grad = tf.gradients(
+                self.__D(__X_inter, is_fake=True), [__X_inter])[0]
             sum_ = tf.reduce_sum(tf.square(grad), axis=[1, 2])
             grad_norm = tf.sqrt(sum_)
-            grad_pen = tf.reduce_mean(tf.square(grad_norm - 1.0))
+            grad_pen = penalty_lambda * tf.reduce_mean(
+                tf.square(grad_norm - 1.0))
+            f_fake = tf.reduce_mean(D_fake)
+            f_real = tf.reduce_mean(D_real)
 
-            loss = tf.reduce_mean(
-                D_fake) - tf.reduce_mean(D_real) + penalty_lambda * grad_pen
-        return loss
+            loss = f_fake - f_real + grad_pen
+        return loss, f_real, f_fake, grad_pen
 
     def G_step(self, sess, latent_inputs, if_pretrain=False, real_data=None):
         """ train one batch on G
@@ -301,7 +314,7 @@ class RNN_WGAN(object):
             [self.__G_loss, self.__global_steps,
                 self.__G_solver], feed_dict=feed_dict)
         # log
-        summary = sess.run(self.__merged_op, feed_dict={self.__loss_V: loss})
+        summary = sess.run(self.__summary_loss, feed_dict={self.__loss_V: loss})
         self.G_summary_writer.add_summary(
             summary, global_step=global_steps)
         return loss, global_steps
@@ -311,13 +324,15 @@ class RNN_WGAN(object):
         """
         feed_dict = {self.__z: latent_inputs,
                      self.__X: real_data, self.__if_pretrain: if_pretrain}
-        loss, global_steps, _ = sess.run(
+        loss, global_steps, _, summary_D = sess.run(
             [self.__D_loss, self.__global_steps,
-                self.__D_solver], feed_dict=feed_dict)
+                self.__D_solver, self.__summary_D_op], feed_dict=feed_dict)
         # log
-        summary = sess.run(self.__merged_op, feed_dict={self.__loss_V: loss})
+        summary_loss = sess.run(self.__summary_loss, feed_dict={self.__loss_V: loss})
         self.D_summary_writer.add_summary(
-            summary, global_step=global_steps)
+            summary_loss, global_step=global_steps)
+        self.D_summary_writer.add_summary(
+            summary_D, global_step=global_steps)
         return loss, global_steps
 
     def generate(self, sess, latent_inputs, if_pretrain=False, real_data=None):

@@ -22,11 +22,11 @@ from utils import Norm
 FLAGS = tf.app.flags.FLAGS
 
 # path parameters
-tf.app.flags.DEFINE_string('log_dir', 'v10/log/',
+tf.app.flags.DEFINE_string('log_dir', 'v11/log/',
                            "summary directory")
-tf.app.flags.DEFINE_string('checkpoints_dir', 'v10/checkpoints/',
+tf.app.flags.DEFINE_string('checkpoints_dir', 'v11/checkpoints/',
                            "checkpoints dir")
-tf.app.flags.DEFINE_string('sample_dir', 'v10/sample/',
+tf.app.flags.DEFINE_string('sample_dir', 'v11/sample/',
                            "directory to save generative result")
 tf.app.flags.DEFINE_string('data_path', '../data/FEATURES.npy',
                            "summary directory")
@@ -37,7 +37,7 @@ tf.app.flags.DEFINE_integer('seq_length', 100,
                             "the maximum length of one training data")
 tf.app.flags.DEFINE_integer('num_features', 23 + 70,
                             "3 (ball x y z) + 10 (players) * 2 (x and y) + 70 (player positions as 10 7-dims-one-hot)")
-tf.app.flags.DEFINE_integer('latent_dims', 23,
+tf.app.flags.DEFINE_integer('latent_dims', 10,
                             "dimensions of latant variable")
 # training parameters
 tf.app.flags.DEFINE_integer('total_epoches', 3000,
@@ -61,9 +61,9 @@ tf.app.flags.DEFINE_integer('pretrain_epoches', 0,
 # logging
 tf.app.flags.DEFINE_integer('save_model_freq', 50,
                             "num of epoches to save model")
-tf.app.flags.DEFINE_integer('save_result_freq', 25,
+tf.app.flags.DEFINE_integer('save_result_freq', 20,
                             "num of epoches to save gif")
-tf.app.flags.DEFINE_integer('log_freq', 173,
+tf.app.flags.DEFINE_integer('log_freq', 200,
                             "num of steps to log")
 
 
@@ -204,7 +204,7 @@ def main(_):
 
         # normalization
         normer = Norm(real_data)
-        real_data = normer.get_normed_data()
+        real_data = normer.get_normed_data()[:, :FLAGS.seq_length, :]
         print(real_data.shape)
 
         # number of batches
