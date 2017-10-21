@@ -87,19 +87,28 @@ class RNN_WGAN(object):
         self.__D_solver = (tf.train.AdamOptimizer(learning_rate=self.learning_rate, beta1=0.5)
                            .minimize(self.__D_loss, var_list=theta_D, global_step=self.__global_steps))
         # summary
-        # use self.__loss_V to draw both D's and G's loss on same plot
-        self.__loss_V = tf.Variable(0.0)
-        self.__summary_loss = tf.summary.scalar('loss', self.__loss_V)
+        # use self.__loss_V to draw both D's and G's loss on same plot TODO
+        # self.__loss_V = tf.Variable(0.0)
+        # self.__summary_loss = tf.summary.scalar('loss', self.__loss_V)
+        tf.summary.scalar('G_loss', self.__G_loss, collections=['G'])
 
-        Dops = []
-        Dops.append(tf.summary.scalar(
-            'F_real', F_real, collections=['D_Loss']))
-        Dops.append(tf.summary.scalar(
-            'F_fake', F_fake, collections=['D_Loss']))
-        Dops.append(tf.summary.scalar(
-            'grad_pen', grad_pen, collections=['D_Loss']))
-        self.__summary_D_op = tf.summary.merge(
-            inputs=Dops, collections=['D_Loss'])
+        # Dops = [] TODO
+        # Dops.append(tf.summary.scalar(
+        #     'F_real', F_real, collections=['D_Loss']))
+        # Dops.append(tf.summary.scalar(
+        #     'F_fake', F_fake, collections=['D_Loss']))
+        # Dops.append(tf.summary.scalar(
+        #     'grad_pen', grad_pen, collections=['D_Loss']))
+        # self.__summary_D_op = tf.summary.merge(
+        #     inputs=Dops, collections=['D_Loss'])
+        tf.summary.scalar('D_loss', self.__D_loss, collections=['D', 'D_valid'])
+        tf.summary.scalar('F_real', F_real, collections=['D'])
+        tf.summary.scalar('F_fake', F_fake, collections=['D'])
+        tf.summary.scalar('grad_pen', grad_pen, collections=['D'])
+        self.__summary_G_op = tf.Graph.get_collection('G')
+        self.__summary_D_op = tf.Graph.get_collection('D')
+        self.__summary_D_valid_op = tf.Graph.get_collection('D_valid')
+
         # summary writer
         self.G_summary_writer = tf.summary.FileWriter(
             self.log_dir + 'G', graph=graph)
@@ -107,6 +116,24 @@ class RNN_WGAN(object):
             self.log_dir + 'D', graph=graph)
         self.D_valid_summary_writer = tf.summary.FileWriter(
             self.log_dir + 'D_valid', graph=graph)
+
+    def _activation_summary(self, x, collections):
+        """ Helper to create summaries for activations.
+        Creates a summary that provides a histogram of activations.
+        Creates a summary that measures the sparsity of activations.
+        Args
+        ----
+        x : Tensor
+        collections : list of string
+        Returns
+        -------
+            nothing
+        """
+        tensor_name = x.op.name
+        tf.summary.histogram(tensor_name + '/activations',
+                             x, collections=collections)
+        tf.summary.scalar(tensor_name + '/sparsity',
+                          tf.nn.zero_fraction(x), collections=collections)
 
     def __get_var_list(self):
         """ to get both Generator's and Discriminator's trainable variables
@@ -177,9 +204,11 @@ class RNN_WGAN(object):
                             uniform=False),
                         biases_initializer=tf.zeros_initializer(),
                         scope=scope)
+                    self._activation_summary(lstm_input, collections=['G'])
                 with tf.variable_scope('stack_lstm') as scope:
                     cell_out, state = cell(
                         inputs=lstm_input, state=state, scope=scope)
+                    self._activation_summary(cell_out, collections=['G'])
                 with tf.variable_scope('position_fc') as scope:
                     position_fc = layers.fully_connected(
                         inputs=cell_out,
@@ -189,12 +218,14 @@ class RNN_WGAN(object):
                             uniform=False),
                         biases_initializer=tf.zeros_initializer(),
                         scope=scope)
+                    self._activation_summary(position_fc, collections=['G'])
                     fc_merge_list.append(position_fc)
                 with tf.variable_scope('player_fc') as scope:
                     player_fc = layers.fully_connected(
                         inputs=cell_out,
                         num_outputs=70,
-                        activation_fn=self.__leaky_relu,
+                        # activation_fn=self.__leaky_relu, #TODO
+                        activation_fn=None,
                         weights_initializer=layers.xavier_initializer(
                             uniform=False),
                         biases_initializer=tf.zeros_initializer(),
@@ -208,6 +239,7 @@ class RNN_WGAN(object):
                                 first_player_fc.append(softmax_out)
                             first_player_fc = tf.concat(
                                 first_player_fc, axis=-1)
+                            self._activation_summary(first_player_fc, collections=['G'])
                     fc_merge_list.append(first_player_fc)
                 generated_point = tf.concat(fc_merge_list, axis=-1)
                 output_list.append(generated_point)
@@ -249,6 +281,7 @@ class RNN_WGAN(object):
                             uniform=False),
                         biases_initializer=tf.constant_initializer(),
                         scope=scope)
+                    self._activation_summary(fully_connect_input, collections=['D'])
                 blstm_input.append(fully_connect_input)
             with tf.variable_scope('stack_bi_lstm') as scope:
                 out_blstm_list, _, _ = rnn.stack_bidirectional_rnn(
@@ -261,6 +294,7 @@ class RNN_WGAN(object):
                     sequence_length=seq_len,
                     scope=scope
                 )
+                self._activation_summary(out_blstm_list, collections=['D'])
             for i, out_blstm in enumerate(out_blstm_list):
                 if i > 0:
                     tf.get_variable_scope().reuse_variables()
@@ -273,6 +307,7 @@ class RNN_WGAN(object):
                             uniform=False),
                         biases_initializer=tf.zeros_initializer(),
                         scope=scope)
+                    self._activation_summary(fconnect, collections=['D'])       
                 output_list.append(fconnect)
             # stack, axis=1 -> [batch, time, feature]
             decisions = tf.stack(output_list, axis=1)
@@ -315,12 +350,14 @@ class RNN_WGAN(object):
         feed_dict = {self.__z: latent_inputs,
                      self.__X: real_data,
                      self.__if_pretrain: if_pretrain}
-        loss, global_steps, _ = sess.run(
-            [self.__G_loss, self.__global_steps,
+        summary, loss, global_steps, _ = sess.run(
+            [self.__summary_G_op, self.__G_loss, self.__global_steps,
                 self.__G_solver], feed_dict=feed_dict)
         # log
-        summary = sess.run(self.__summary_loss, feed_dict={
-                           self.__loss_V: loss})
+        # summary = sess.run(self.__summary_loss, feed_dict={ TODO
+        #                    self.__loss_V: loss})
+        # self.G_summary_writer.add_summary(
+        #     summary, global_step=global_steps)
         self.G_summary_writer.add_summary(
             summary, global_step=global_steps)
         return loss, global_steps
@@ -331,16 +368,18 @@ class RNN_WGAN(object):
         feed_dict = {self.__z: latent_inputs,
                      self.__X: real_data,
                      self.__if_pretrain: if_pretrain}
-        loss, global_steps, _, summary_D = sess.run(
-            [self.__D_loss, self.__global_steps,
+        summary, loss, global_steps, _, summary_D = sess.run(
+            [self.__summary_D_op, self.__D_loss, self.__global_steps,
                 self.__D_solver, self.__summary_D_op], feed_dict=feed_dict)
         # log
-        summary_loss = sess.run(self.__summary_loss, feed_dict={
-                                self.__loss_V: loss})
+        # summary_loss = sess.run(self.__summary_loss, feed_dict={ TODO
+        #                         self.__loss_V: loss})
+        # self.D_summary_writer.add_summary(
+        #     summary_loss, global_step=global_steps)
+        # self.D_summary_writer.add_summary(
+        #     summary_D, global_step=global_steps)
         self.D_summary_writer.add_summary(
-            summary_loss, global_step=global_steps)
-        self.D_summary_writer.add_summary(
-            summary_D, global_step=global_steps)
+            summary, global_step=global_steps)
         return loss, global_steps
 
     def D_log_valid_loss(self, sess, latent_inputs, real_data, if_pretrain=False):
@@ -349,13 +388,13 @@ class RNN_WGAN(object):
         feed_dict = {self.__z: latent_inputs,
                      self.__X: real_data,
                      self.__if_pretrain: if_pretrain}
-        loss, global_steps = sess.run(
-            [self.__D_loss, self.__global_steps], feed_dict=feed_dict)
+        summary, loss, global_steps = sess.run(
+            [self.__summary_D_valid_op, self.__D_loss, self.__global_steps], feed_dict=feed_dict)
         # log
-        summary_loss = sess.run(self.__summary_loss, feed_dict={
-                                self.__loss_V: loss})
+        # summary_loss = sess.run(self.__summary_loss, feed_dict={
+        #                         self.__loss_V: loss})
         self.D_valid_summary_writer.add_summary(
-            summary_loss, global_step=global_steps)
+            summary, global_step=global_steps)
         return loss
 
     def generate(self, sess, latent_inputs, if_pretrain=False, real_data=None):
