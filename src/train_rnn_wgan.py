@@ -52,7 +52,7 @@ tf.app.flags.DEFINE_integer('batch_size', 64,
                             "batch size")
 tf.app.flags.DEFINE_float('learning_rate', 1e-4,
                           "learning rate")
-tf.app.flags.DEFINE_integer('hidden_size', 23,
+tf.app.flags.DEFINE_integer('hidden_size', 230,
                             "hidden size of LSTM")
 tf.app.flags.DEFINE_integer('rnn_layers', 2,
                             "num of layers for rnn")
