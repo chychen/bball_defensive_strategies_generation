@@ -126,8 +126,8 @@ class RNN_WGAN(object):
 
     def __lstm_cell(self):
         return rnn.LSTMCell(self.hidden_size, use_peepholes=True, initializer=None,
-                            forget_bias=1.0, state_is_tuple=True,
-                            activation=tf.tanh, reuse=tf.get_variable_scope().reuse)
+                            forget_bias=1.0, state_is_tuple=True, cell_clip=2,
+                            activation=self.__leaky_relu, reuse=tf.get_variable_scope().reuse)
 
     def __G(self, inputs, seq_len=None):
         """

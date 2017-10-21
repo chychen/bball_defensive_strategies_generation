@@ -22,11 +22,11 @@ from utils import Norm
 FLAGS = tf.app.flags.FLAGS
 
 # path parameters
-tf.app.flags.DEFINE_string('log_dir', 'v12/log/',
+tf.app.flags.DEFINE_string('log_dir', 'v13/log/',
                            "summary directory")
-tf.app.flags.DEFINE_string('checkpoints_dir', 'v12/checkpoints/',
+tf.app.flags.DEFINE_string('checkpoints_dir', 'v13/checkpoints/',
                            "checkpoints dir")
-tf.app.flags.DEFINE_string('sample_dir', 'v12/sample/',
+tf.app.flags.DEFINE_string('sample_dir', 'v13/sample/',
                            "directory to save generative result")
 tf.app.flags.DEFINE_string('data_path', '../data/FEATURES.npy',
                            "summary directory")
@@ -63,7 +63,7 @@ tf.app.flags.DEFINE_bool('if_feed_previous', True,
 tf.app.flags.DEFINE_integer('pretrain_epoches', 0,
                             "num of ephoch to train label as input")
 # logging
-tf.app.flags.DEFINE_integer('save_model_freq', 50,
+tf.app.flags.DEFINE_integer('save_model_freq', 40,
                             "num of epoches to save model")
 tf.app.flags.DEFINE_integer('save_result_freq', 20,
                             "num of epoches to save gif")
@@ -161,6 +161,7 @@ def training(sess, model, real_data, num_batches, saver, normer, is_pretrain=Fal
                 num_train_D = num_batches * 5  # TODO
             else:
                 num_train_D = FLAGS.num_train_D
+                # num_train_D = num_batches
             for id_ in range(num_train_D):
                 if (id_ + 1) % num_batches == 0:
                     # shuffle the data
@@ -178,17 +179,24 @@ def training(sess, model, real_data, num_batches, saver, normer, is_pretrain=Fal
                     sess, z_samples(), real_data_batch, is_pretrain)
                 batch_id += 1
                 log_counter += 1
-                # log validation loss
-                data_idx = global_steps * \
-                    FLAGS.batch_size % (valid_data.shape[0] - FLAGS.batch_size)
-                valid_data_batch = valid_data[data_idx:data_idx +
-                                              FLAGS.batch_size]
-                D_valid_loss_mean = model.D_log_valid_loss(
-                    sess, z_samples(), valid_data_batch)
+                
+            # log validation loss
+            data_idx = global_steps * \
+                FLAGS.batch_size % (valid_data.shape[0] - FLAGS.batch_size)
+            valid_data_batch = valid_data[data_idx:data_idx +
+                                        FLAGS.batch_size]
+            D_valid_loss_mean = model.D_log_valid_loss(
+                sess, z_samples(), valid_data_batch)
+
             # train G
             G_loss_mean, global_steps = model.G_step(
                 sess, z_samples(), is_pretrain, real_data_batch)
             log_counter += 1
+            # if epoch_id >= FLAGS.num_pretrain_D:
+            #     for id_ in range(num_train_D):
+            #         G_loss_mean, global_steps = model.G_step(
+            #             sess, z_samples(), is_pretrain, real_data_batch)
+            #         log_counter += 1
 
             # logging
             if log_counter >= FLAGS.log_freq:
