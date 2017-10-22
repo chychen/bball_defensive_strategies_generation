@@ -81,21 +81,27 @@ class RNN_WGAN(object):
         self.__D_loss, F_real, F_fake, grad_pen = self.__D_loss_fn(
             real_extracted, fake_extracted, D_fake, D_real, self.penalty_lambda)
         # optimizer
-        # G 
+        # G
         theta_G, theta_D = self.__get_var_list()
-        G_optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate, beta1=0.5, beta2=0.9)
+        G_optimizer = tf.train.AdamOptimizer(
+            learning_rate=self.learning_rate, beta1=0.5, beta2=0.9)
         G_grads = tf.gradients(self.__G_loss, theta_G)
-        for grad in G_grads:
-            self.__summarize(grad, collections='G', postfix='gradient')
         G_grads = list(zip(G_grads, theta_G))
-        self.__G_train_op = G_optimizer.apply_gradients(grads_and_vars=G_grads, global_step=self.__global_steps)
+        for grad, var in G_grads:
+            self.__summarize(var.name, grad, collections='G',
+                             postfix='gradient')
+        self.__G_train_op = G_optimizer.apply_gradients(
+            grads_and_vars=G_grads, global_step=self.__global_steps)
         # D
-        D_optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate, beta1=0.5, beta2=0.9)
+        D_optimizer = tf.train.AdamOptimizer(
+            learning_rate=self.learning_rate, beta1=0.5, beta2=0.9)
         D_grads = tf.gradients(self.__D_loss, theta_D)
-        for grad in D_grads:
-            self.__summarize(grad, collections='D', postfix='gradient')
         D_grads = list(zip(D_grads, theta_D))
-        self.__D_train_op = D_optimizer.apply_gradients(grads_and_vars=D_grads, global_step=self.__global_steps)
+        for grad, var in D_grads:
+            self.__summarize(var.name, grad, collections='G',
+                             postfix='gradient')
+        self.__D_train_op = D_optimizer.apply_gradients(
+            grads_and_vars=D_grads, global_step=self.__global_steps)
 
         tf.summary.scalar('G_loss', self.__G_loss, collections=['G'])
 
@@ -117,13 +123,14 @@ class RNN_WGAN(object):
         self.D_valid_summary_writer = tf.summary.FileWriter(
             self.log_dir + 'D_valid', graph=graph)
 
-    def __summarize(self, x, collections, postfix='', mode=True):
+    def __summarize(self, name, value, collections, postfix='', mode=True):
         """ Helper to create summaries for activations.
         Creates a summary that provides a histogram of activations.
         Creates a summary that measures the sparsity of activations.
         Args
         ----
-        x : Tensor
+        name : string
+        value : Tensor
         collections : list of string
         postfix : string
         Returns
@@ -131,12 +138,11 @@ class RNN_WGAN(object):
             nothing
         """
         if mode:
-            tensor_name = x.op.name + '/' + postfix
+            tensor_name = name + '/' + postfix
             tf.summary.histogram(tensor_name,
-                                x, collections=collections)
+                                 value, collections=collections)
             # tf.summary.scalar(tensor_name + '/sparsity',
             #                   tf.nn.zero_fraction(x), collections=collections)
-    
 
     def __get_var_list(self):
         """ to get both Generator's and Discriminator's trainable variables
@@ -148,10 +154,12 @@ class RNN_WGAN(object):
         for _, v in enumerate(trainable_V):
             if v.name.startswith('G'):
                 theta_G.append(v)
-                self.__summarize(v, collections='G', postfix='Trainable')
+                self.__summarize(v.op.name, v, collections='G',
+                                 postfix='Trainable')
             elif v.name.startswith('D'):
                 theta_D.append(v)
-                self.__summarize(v, collections='D', postfix='Trainable')
+                self.__summarize(v.op.name, v, collections='D',
+                                 postfix='Trainable')
         return theta_G, theta_D
 
     def __leaky_relu(self, features, alpha=0.7):
@@ -211,13 +219,13 @@ class RNN_WGAN(object):
                             uniform=False),
                         biases_initializer=tf.zeros_initializer(),
                         scope=scope)
-                    self.__summarize(lstm_input, collections=[
-                                             'G'], postfix='Activation')
+                    self.__summarize('lstm_input', lstm_input, collections=[
+                        'G'], postfix='Activation')
                 with tf.variable_scope('stack_lstm') as scope:
                     cell_out, state = cell(
                         inputs=lstm_input, state=state, scope=scope)
-                    self.__summarize(cell_out, collections=[
-                                             'G'], postfix='Activation')
+                    self.__summarize('cell_out', cell_out, collections=[
+                        'G'], postfix='Activation')
                 with tf.variable_scope('position_fc') as scope:
                     position_fc = layers.fully_connected(
                         inputs=cell_out,
@@ -227,8 +235,8 @@ class RNN_WGAN(object):
                             uniform=False),
                         biases_initializer=tf.zeros_initializer(),
                         scope=scope)
-                    self.__summarize(position_fc, collections=[
-                                             'G'], postfix='Activation')
+                    self.__summarize('position_fc', position_fc, collections=[
+                        'G'], postfix='Activation')
                     fc_merge_list.append(position_fc)
                 with tf.variable_scope('player_fc') as scope:
                     player_fc = layers.fully_connected(
@@ -248,8 +256,8 @@ class RNN_WGAN(object):
                                 first_player_fc.append(softmax_out)
                             first_player_fc = tf.concat(
                                 first_player_fc, axis=-1)
-                            self.__summarize(first_player_fc, collections=[
-                                                     'G'], postfix='Activation')
+                            self.__summarize('first_player_fc', first_player_fc, collections=[
+                                'G'], postfix='Activation')
                     fc_merge_list.append(first_player_fc)
                 generated_point = tf.concat(fc_merge_list, axis=-1)
                 output_list.append(generated_point)
@@ -291,8 +299,8 @@ class RNN_WGAN(object):
                             uniform=False),
                         biases_initializer=tf.constant_initializer(),
                         scope=scope)
-                    self.__summarize(fully_connect_input, collections=[
-                                             'D'], postfix='Activation')
+                    self.__summarize('fully_connect_input', fully_connect_input, collections=[
+                        'D'], postfix='Activation')
                 blstm_input.append(fully_connect_input)
             with tf.variable_scope('stack_bi_lstm') as scope:
                 out_blstm_list, _, _ = rnn.stack_bidirectional_rnn(
@@ -306,8 +314,8 @@ class RNN_WGAN(object):
                     scope=scope
                 )
             for i, out_blstm in enumerate(out_blstm_list):
-                self.__summarize(out_blstm, collections=[
-                                         'D'], postfix='Activation')
+                self.__summarize('out_blstm', out_blstm, collections=[
+                    'D'], postfix='Activation')
                 if i > 0:
                     tf.get_variable_scope().reuse_variables()
                 with tf.variable_scope('fully_connect') as scope:
@@ -319,8 +327,8 @@ class RNN_WGAN(object):
                             uniform=False),
                         biases_initializer=tf.zeros_initializer(),
                         scope=scope)
-                    self.__summarize(fconnect, collections=[
-                                             'D'], postfix='Activation')
+                    self.__summarize('fconnect', fconnect, collections=[
+                        'D'], postfix='Activation')
                 output_list.append(fconnect)
             # stack, axis=1 -> [batch, time, feature]
             decisions = tf.stack(output_list, axis=1)
