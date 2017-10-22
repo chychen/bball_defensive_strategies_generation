@@ -22,13 +22,13 @@ from utils import Norm
 FLAGS = tf.app.flags.FLAGS
 
 # path parameters
-tf.app.flags.DEFINE_string('log_dir', 'v13/log/',
+tf.app.flags.DEFINE_string('log_dir', 'v14/log/',
                            "summary directory")
-tf.app.flags.DEFINE_string('checkpoints_dir', 'v13/checkpoints/',
+tf.app.flags.DEFINE_string('checkpoints_dir', 'v14/checkpoints/',
                            "checkpoints dir")
-tf.app.flags.DEFINE_string('sample_dir', 'v13/sample/',
+tf.app.flags.DEFINE_string('sample_dir', 'v14/sample/',
                            "directory to save generative result")
-tf.app.flags.DEFINE_string('data_path', '../data/FEATURES.npy',
+tf.app.flags.DEFINE_string('data_path', '../data/F2.npy',
                            "summary directory")
 tf.app.flags.DEFINE_string('restore_path', None,
                            "path of saving model eg: checkpoints/model.ckpt-5")
@@ -56,7 +56,7 @@ tf.app.flags.DEFINE_integer('hidden_size', 230,
                             "hidden size of LSTM")
 tf.app.flags.DEFINE_integer('rnn_layers', 2,
                             "num of layers for rnn")
-tf.app.flags.DEFINE_float('penalty_lambda', 10.0,
+tf.app.flags.DEFINE_float('penalty_lambda', 100.0,
                           "regularization parameter of wGAN loss function")
 tf.app.flags.DEFINE_bool('if_feed_previous', True,
                          "if feed the previous output concated with current input")

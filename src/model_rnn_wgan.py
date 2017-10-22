@@ -81,12 +81,22 @@ class RNN_WGAN(object):
         self.__D_loss, F_real, F_fake, grad_pen = self.__D_loss_fn(
             real_extracted, fake_extracted, D_fake, D_real, self.penalty_lambda)
         # optimizer
+        # G 
         theta_G, theta_D = self.__get_var_list()
-        self.__G_solver = (tf.train.AdamOptimizer(learning_rate=self.learning_rate, beta1=0.5, beta2=0.9)
-                           .minimize(self.__G_loss, var_list=theta_G, global_step=self.__global_steps))
-        self.__D_solver = (tf.train.AdamOptimizer(learning_rate=self.learning_rate, beta1=0.5, beta2=0.9)
-                           .minimize(self.__D_loss, var_list=theta_D, global_step=self.__global_steps))
-        # summary
+        G_optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate, beta1=0.5, beta2=0.9)
+        G_grads = tf.gradients(self.__G_loss, theta_G)
+        for grad in G_grads:
+            self.__summarize(G_grads, collections='G', postfix='gradient')
+        G_grads = list(zip(G_grads, theta_G))
+        self.__G_train_op = G_optimizer.apply_gradients(grads_and_vars=G_grads, global_step=self.__global_steps)
+        # D
+        D_optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate, beta1=0.5, beta2=0.9)
+        D_grads = tf.gradients(self.__D_loss, theta_D)
+        for grad in D_grads:
+            self.__summarize(D_grads, collections='D', postfix='gradient')
+        D_grads = list(zip(D_grads, theta_D))
+        self.__D_train_op = D_optimizer.apply_gradients(grads_and_vars=D_grads, global_step=self.__global_steps)
+
         tf.summary.scalar('G_loss', self.__G_loss, collections=['G'])
 
         tf.summary.scalar('D_loss', self.__D_loss,
@@ -107,7 +117,7 @@ class RNN_WGAN(object):
         self.D_valid_summary_writer = tf.summary.FileWriter(
             self.log_dir + 'D_valid', graph=graph)
 
-    def _activation_summary(self, x, collections, postfix=''):
+    def __summarize(self, x, collections, postfix='', mode=True):
         """ Helper to create summaries for activations.
         Creates a summary that provides a histogram of activations.
         Creates a summary that measures the sparsity of activations.
@@ -120,14 +130,17 @@ class RNN_WGAN(object):
         -------
             nothing
         """
-        tensor_name = x.op.name + '/' + postfix
-        tf.summary.histogram(tensor_name,
-                             x, collections=collections)
-        # tf.summary.scalar(tensor_name + '/sparsity',
-        #                   tf.nn.zero_fraction(x), collections=collections)
+        if mode:
+            tensor_name = x.op.name + '/' + postfix
+            tf.summary.histogram(tensor_name,
+                                x, collections=collections)
+            # tf.summary.scalar(tensor_name + '/sparsity',
+            #                   tf.nn.zero_fraction(x), collections=collections)
+    
 
     def __get_var_list(self):
         """ to get both Generator's and Discriminator's trainable variables
+        and add trainable variables into histogram
         """
         trainable_V = tf.trainable_variables()
         theta_G = []
@@ -135,12 +148,10 @@ class RNN_WGAN(object):
         for _, v in enumerate(trainable_V):
             if v.name.startswith('G'):
                 theta_G.append(v)
-                self._activation_summary(
-                    v, collections='G', postfix='Trainable')
+                self.__summarize(v, collections='G', postfix='Trainable')
             elif v.name.startswith('D'):
                 theta_D.append(v)
-                self._activation_summary(
-                    v, collections='D', postfix='Trainable')
+                self.__summarize(v, collections='D', postfix='Trainable')
         return theta_G, theta_D
 
     def __leaky_relu(self, features, alpha=0.7):
@@ -200,12 +211,12 @@ class RNN_WGAN(object):
                             uniform=False),
                         biases_initializer=tf.zeros_initializer(),
                         scope=scope)
-                    self._activation_summary(lstm_input, collections=[
+                    self.__summarize(lstm_input, collections=[
                                              'G'], postfix='Activation')
                 with tf.variable_scope('stack_lstm') as scope:
                     cell_out, state = cell(
                         inputs=lstm_input, state=state, scope=scope)
-                    self._activation_summary(cell_out, collections=[
+                    self.__summarize(cell_out, collections=[
                                              'G'], postfix='Activation')
                 with tf.variable_scope('position_fc') as scope:
                     position_fc = layers.fully_connected(
@@ -216,7 +227,7 @@ class RNN_WGAN(object):
                             uniform=False),
                         biases_initializer=tf.zeros_initializer(),
                         scope=scope)
-                    self._activation_summary(position_fc, collections=[
+                    self.__summarize(position_fc, collections=[
                                              'G'], postfix='Activation')
                     fc_merge_list.append(position_fc)
                 with tf.variable_scope('player_fc') as scope:
@@ -237,7 +248,7 @@ class RNN_WGAN(object):
                                 first_player_fc.append(softmax_out)
                             first_player_fc = tf.concat(
                                 first_player_fc, axis=-1)
-                            self._activation_summary(first_player_fc, collections=[
+                            self.__summarize(first_player_fc, collections=[
                                                      'G'], postfix='Activation')
                     fc_merge_list.append(first_player_fc)
                 generated_point = tf.concat(fc_merge_list, axis=-1)
@@ -280,7 +291,7 @@ class RNN_WGAN(object):
                             uniform=False),
                         biases_initializer=tf.constant_initializer(),
                         scope=scope)
-                    self._activation_summary(fully_connect_input, collections=[
+                    self.__summarize(fully_connect_input, collections=[
                                              'D'], postfix='Activation')
                 blstm_input.append(fully_connect_input)
             with tf.variable_scope('stack_bi_lstm') as scope:
@@ -295,7 +306,7 @@ class RNN_WGAN(object):
                     scope=scope
                 )
             for i, out_blstm in enumerate(out_blstm_list):
-                self._activation_summary(out_blstm, collections=[
+                self.__summarize(out_blstm, collections=[
                                          'D'], postfix='Activation')
                 if i > 0:
                     tf.get_variable_scope().reuse_variables()
@@ -308,7 +319,7 @@ class RNN_WGAN(object):
                             uniform=False),
                         biases_initializer=tf.zeros_initializer(),
                         scope=scope)
-                    self._activation_summary(fconnect, collections=[
+                    self.__summarize(fconnect, collections=[
                                              'D'], postfix='Activation')
                 output_list.append(fconnect)
             # stack, axis=1 -> [batch, time, feature]
@@ -354,7 +365,7 @@ class RNN_WGAN(object):
                      self.__if_pretrain: if_pretrain}
         summary, loss, global_steps, _ = sess.run(
             [self.__summary_G_op, self.__G_loss, self.__global_steps,
-                self.__G_solver], feed_dict=feed_dict)
+                self.__G_train_op], feed_dict=feed_dict)
         # log
         self.G_summary_writer.add_summary(
             summary, global_step=global_steps)
@@ -367,7 +378,7 @@ class RNN_WGAN(object):
                      self.__X: real_data,
                      self.__if_pretrain: if_pretrain}
         summary, loss, global_steps, _ = sess.run(
-            [self.__summary_D_op, self.__D_loss, self.__global_steps, self.__D_solver], feed_dict=feed_dict)
+            [self.__summary_D_op, self.__D_loss, self.__global_steps, self.__D_train_op], feed_dict=feed_dict)
         # log
         self.D_summary_writer.add_summary(
             summary, global_step=global_steps)
