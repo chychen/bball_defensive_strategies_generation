@@ -86,14 +86,14 @@ class RNN_WGAN(object):
         G_optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate, beta1=0.5, beta2=0.9)
         G_grads = tf.gradients(self.__G_loss, theta_G)
         for grad in G_grads:
-            self.__summarize(G_grads, collections='G', postfix='gradient')
+            self.__summarize(grad, collections='G', postfix='gradient')
         G_grads = list(zip(G_grads, theta_G))
         self.__G_train_op = G_optimizer.apply_gradients(grads_and_vars=G_grads, global_step=self.__global_steps)
         # D
         D_optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate, beta1=0.5, beta2=0.9)
         D_grads = tf.gradients(self.__D_loss, theta_D)
         for grad in D_grads:
-            self.__summarize(D_grads, collections='D', postfix='gradient')
+            self.__summarize(grad, collections='D', postfix='gradient')
         D_grads = list(zip(D_grads, theta_D))
         self.__D_train_op = D_optimizer.apply_gradients(grads_and_vars=D_grads, global_step=self.__global_steps)
 
