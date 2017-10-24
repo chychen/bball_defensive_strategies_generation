@@ -61,6 +61,8 @@ class RNN_WGAN(object):
         self.if_feed_previous = config.if_feed_previous
         # steps
         self.__global_steps = tf.train.get_or_create_global_step(graph=graph)
+        self.__G_steps = 0
+        self.__D_steps = 0
         # data
         self.__z = tf.placeholder(dtype=tf.float32, shape=[
             self.batch_size, self.seq_length, self.latent_dims], name='latent_input')
@@ -98,7 +100,7 @@ class RNN_WGAN(object):
         D_grads = tf.gradients(self.__D_loss, theta_D)
         D_grads = list(zip(D_grads, theta_D))
         for grad, var in D_grads:
-            self.__summarize(var.name, grad, collections='G',
+            self.__summarize(var.name, grad, collections='D',
                              postfix='gradient')
         self.__D_train_op = D_optimizer.apply_gradients(
             grads_and_vars=D_grads, global_step=self.__global_steps)
@@ -287,8 +289,8 @@ class RNN_WGAN(object):
             output_list = []
             if is_fake:
                 tf.get_variable_scope().reuse_variables()
-            for time_step in range(self.seq_length):
-                with tf.variable_scope('fully_connect_input') as scope:
+            with tf.variable_scope('fully_connect_input') as scope:
+                for time_step in range(self.seq_length):                
                     if time_step > 0:
                         tf.get_variable_scope().reuse_variables()
                     fully_connect_input = layers.fully_connected(
@@ -368,28 +370,34 @@ class RNN_WGAN(object):
     def G_step(self, sess, latent_inputs, if_pretrain=False, real_data=None):
         """ train one batch on G
         """
+        self.__G_steps += 1
         feed_dict = {self.__z: latent_inputs,
                      self.__X: real_data,
                      self.__if_pretrain: if_pretrain}
-        summary, loss, global_steps, _ = sess.run(
-            [self.__summary_G_op, self.__G_loss, self.__global_steps,
+        loss, global_steps, _ = sess.run(
+            [self.__G_loss, self.__global_steps,
                 self.__G_train_op], feed_dict=feed_dict)
-        # log
-        self.G_summary_writer.add_summary(
-            summary, global_step=global_steps)
+        if self.__G_steps % 500 == 0:
+            summary = sess.run(self.__summary_G_op, feed_dict=feed_dict)
+            # log
+            self.G_summary_writer.add_summary(
+                summary, global_step=global_steps)
         return loss, global_steps
 
     def D_step(self, sess, latent_inputs, real_data, if_pretrain=False):
         """ train one batch on D
         """
+        self.__D_steps += 1
         feed_dict = {self.__z: latent_inputs,
                      self.__X: real_data,
                      self.__if_pretrain: if_pretrain}
-        summary, loss, global_steps, _ = sess.run(
-            [self.__summary_D_op, self.__D_loss, self.__global_steps, self.__D_train_op], feed_dict=feed_dict)
-        # log
-        self.D_summary_writer.add_summary(
-            summary, global_step=global_steps)
+        loss, global_steps, _ = sess.run(
+            [self.__D_loss, self.__global_steps, self.__D_train_op], feed_dict=feed_dict)
+        if self.__D_steps % 500 == 0:
+            summary = sess.run(self.__summary_D_op, feed_dict=feed_dict)
+            # log
+            self.D_summary_writer.add_summary(
+                summary, global_step=global_steps)
         return loss, global_steps
 
     def D_log_valid_loss(self, sess, latent_inputs, real_data, if_pretrain=False):
@@ -398,13 +406,12 @@ class RNN_WGAN(object):
         feed_dict = {self.__z: latent_inputs,
                      self.__X: real_data,
                      self.__if_pretrain: if_pretrain}
-        summary, loss, global_steps = sess.run(
-            [self.__summary_D_valid_op, self.__D_loss, self.__global_steps], feed_dict=feed_dict)
-        # log
-        # summary_loss = sess.run(self.__summary_loss, feed_dict={
-        #                         self.__loss_V: loss})
-        self.D_valid_summary_writer.add_summary(
-            summary, global_step=global_steps)
+        loss, global_steps = sess.run([self.__D_loss, self.__global_steps], feed_dict=feed_dict)
+        if self.__D_steps % 500 == 0:
+            summary = sess.run(self.__summary_D_valid_op, feed_dict=feed_dict)
+            # log
+            self.D_valid_summary_writer.add_summary(
+                summary, global_step=global_steps)
         return loss
 
     def generate(self, sess, latent_inputs, if_pretrain=False, real_data=None):

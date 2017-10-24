@@ -22,11 +22,11 @@ from utils import Norm
 FLAGS = tf.app.flags.FLAGS
 
 # path parameters
-tf.app.flags.DEFINE_string('log_dir', 'v14/log/',
+tf.app.flags.DEFINE_string('log_dir', 'v16/log/',
                            "summary directory")
-tf.app.flags.DEFINE_string('checkpoints_dir', 'v14/checkpoints/',
+tf.app.flags.DEFINE_string('checkpoints_dir', 'v16/checkpoints/',
                            "checkpoints dir")
-tf.app.flags.DEFINE_string('sample_dir', 'v14/sample/',
+tf.app.flags.DEFINE_string('sample_dir', 'v16/sample/',
                            "directory to save generative result")
 tf.app.flags.DEFINE_string('data_path', '../data/F2.npy',
                            "summary directory")
@@ -48,7 +48,7 @@ tf.app.flags.DEFINE_integer('num_pretrain_D', 10,
                             "num of ephoch to train D before train G")
 tf.app.flags.DEFINE_integer('freq_train_D', 50,
                             "freqence of num ephoch to train D more")
-tf.app.flags.DEFINE_integer('batch_size', 64,
+tf.app.flags.DEFINE_integer('batch_size', 256,
                             "batch size")
 tf.app.flags.DEFINE_float('learning_rate', 1e-4,
                           "learning rate")
@@ -56,7 +56,7 @@ tf.app.flags.DEFINE_integer('hidden_size', 230,
                             "hidden size of LSTM")
 tf.app.flags.DEFINE_integer('rnn_layers', 2,
                             "num of layers for rnn")
-tf.app.flags.DEFINE_float('penalty_lambda', 100.0,
+tf.app.flags.DEFINE_float('penalty_lambda', 10.0,
                           "regularization parameter of wGAN loss function")
 tf.app.flags.DEFINE_bool('if_feed_previous', True,
                          "if feed the previous output concated with current input")
@@ -140,6 +140,9 @@ def training(sess, model, real_data, num_batches, saver, normer, is_pretrain=Fal
     num_batches = num_batches // 10 * 9
     num_valid_batches = num_batches // 10 * 1
 
+    # fixed sampled result input noise
+    sampled_noise = z_samples()
+
     if is_pretrain:
         num_epoches = FLAGS.pretrain_epoches
     else:
@@ -180,13 +183,13 @@ def training(sess, model, real_data, num_batches, saver, normer, is_pretrain=Fal
                 batch_id += 1
                 log_counter += 1
                 
-            # log validation loss
-            data_idx = global_steps * \
-                FLAGS.batch_size % (valid_data.shape[0] - FLAGS.batch_size)
-            valid_data_batch = valid_data[data_idx:data_idx +
-                                        FLAGS.batch_size]
-            D_valid_loss_mean = model.D_log_valid_loss(
-                sess, z_samples(), valid_data_batch)
+                # log validation loss
+                data_idx = global_steps * \
+                    FLAGS.batch_size % (valid_data.shape[0] - FLAGS.batch_size)
+                valid_data_batch = valid_data[data_idx:data_idx +
+                                            FLAGS.batch_size]
+                D_valid_loss_mean = model.D_log_valid_loss(
+                    sess, z_samples(), valid_data_batch)
 
             # train G
             G_loss_mean, global_steps = model.G_step(
@@ -219,12 +222,16 @@ def training(sess, model, real_data, num_batches, saver, normer, is_pretrain=Fal
         # plot generated sample
         if (epoch_id % FLAGS.save_result_freq) == 0 or epoch_id == FLAGS.total_epoches - 1:
             samples = model.generate(
-                sess, z_samples(), is_pretrain, real_data_batch)
+                sess, sampled_noise, is_pretrain, real_data_batch)
             # scale recovering
             samples = normer.recover_data(samples)
             # plot
             game_visualizer.plot_data(
-                samples, FLAGS.seq_length, file_path=FLAGS.sample_dir + str(global_steps) + '.gif', if_save=True)
+                samples[0:], FLAGS.seq_length, file_path=FLAGS.sample_dir + str(global_steps) + '_0.gif', if_save=True)
+            game_visualizer.plot_data(
+                samples[1:], FLAGS.seq_length, file_path=FLAGS.sample_dir + str(global_steps) + '_1.gif', if_save=True)
+            game_visualizer.plot_data(
+                samples[2:], FLAGS.seq_length, file_path=FLAGS.sample_dir + str(global_steps) + '_2.gif', if_save=True)
 
 
 def main(_):
