@@ -377,7 +377,7 @@ class RNN_WGAN(object):
         loss, global_steps, _ = sess.run(
             [self.__G_loss, self.__global_steps,
                 self.__G_train_op], feed_dict=feed_dict)
-        if self.__G_steps % 500 == 0:
+        if self.__G_steps % 100 == 0:
             summary = sess.run(self.__summary_G_op, feed_dict=feed_dict)
             # log
             self.G_summary_writer.add_summary(
