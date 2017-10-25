@@ -50,7 +50,8 @@ def update_all(frame_id, player_circles, ball_circle, annotations, data):
     # ball
     ball_circle.center = data[frame_id // max_length, frame_id %
                               max_length, 0], data[frame_id // max_length, frame_id % max_length, 1]
-    ball_circle.set_radius(1.0 + data[frame_id // max_length, frame_id % max_length, 2] / 10.0)
+    ball_circle.set_radius(
+        1.0 + data[frame_id // max_length, frame_id % max_length, 2] / 10.0)
     annotations[10].set_position(ball_circle.center)
     return
 
@@ -135,10 +136,11 @@ def test():
     train_data = normer.get_normed_data()
     train_data = normer.recover_data(train_data)
 
-    plot_data(train_data, length=opt.length,
-              file_path=opt.save_path, if_save=opt.save)
+    for i in range(opt.amount):
+        plot_data(train_data[i:i + 1], length=100,
+                  file_path=opt.save_path + 'play_' + str(i) + '.gif', if_save=opt.save)
     print('opt.save', opt.save)
-    print('opt.length', opt.length)
+    print('opt.amount', opt.amount)
     print('opt.seq_length', opt.seq_length)
     print('opt.save_path', opt.save_path)
 
@@ -148,14 +150,14 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='NBA Games visulization')
     parser.add_argument('--save', type=bool, default=True,
                         help='bool, if save as gif file')
-    parser.add_argument('--length', type=int, default=100,
-                        help='how many frames do you want to plot')
+    parser.add_argument('--amount', type=int, default=100,
+                        help='how many event do you want to plot')
     parser.add_argument('--seq_length', type=int, default=100,
                         help='how long for each event')
-    parser.add_argument('--save_path', type=str, default='../data/ten_event.gif',
+    parser.add_argument('--save_path', type=str, default='../data/',
                         help='string, path to save event animation')
     parser.add_argument('--data_path', type=str,
-                        default='../data/FEATURES.npy', help='string, path of target data')
+                        default='../data/F2.npy', help='string, path of target data')
 
     opt = parser.parse_args()
     test()
