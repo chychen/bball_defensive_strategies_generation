@@ -22,11 +22,11 @@ from utils import Norm
 FLAGS = tf.app.flags.FLAGS
 
 # path parameters
-tf.app.flags.DEFINE_string('log_dir', 'v16/log/',
+tf.app.flags.DEFINE_string('log_dir', 'v18/log/',
                            "summary directory")
-tf.app.flags.DEFINE_string('checkpoints_dir', 'v16/checkpoints/',
+tf.app.flags.DEFINE_string('checkpoints_dir', 'v18/checkpoints/',
                            "checkpoints dir")
-tf.app.flags.DEFINE_string('sample_dir', 'v16/sample/',
+tf.app.flags.DEFINE_string('sample_dir', 'v18/sample/',
                            "directory to save generative result")
 tf.app.flags.DEFINE_string('data_path', '../data/F2.npy',
                            "summary directory")
@@ -58,8 +58,6 @@ tf.app.flags.DEFINE_integer('rnn_layers', 2,
                             "num of layers for rnn")
 tf.app.flags.DEFINE_float('penalty_lambda', 10.0,
                           "regularization parameter of wGAN loss function")
-tf.app.flags.DEFINE_bool('if_feed_previous', True,
-                         "if feed the previous output concated with current input")
 tf.app.flags.DEFINE_integer('pretrain_epoches', 0,
                             "num of ephoch to train label as input")
 # logging
@@ -93,7 +91,6 @@ class TrainingConfig(object):
         self.num_features = FLAGS.num_features
         self.latent_dims = FLAGS.latent_dims
         self.penalty_lambda = FLAGS.penalty_lambda
-        self.if_feed_previous = FLAGS.if_feed_previous
         self.num_train_D = FLAGS.num_train_D
         self.num_pretrain_D = FLAGS.num_pretrain_D
         self.freq_train_D = FLAGS.freq_train_D
@@ -116,7 +113,6 @@ class TrainingConfig(object):
         print("num_features:", self.num_features)
         print("latent_dims:", self.latent_dims)
         print("penalty_lambda:", self.penalty_lambda)
-        print("if_feed_previous:", self.if_feed_previous)
         print("num_train_D:", self.num_train_D)
         print("num_pretrain_D:", self.num_pretrain_D)
         print("freq_train_D:", self.freq_train_D)
@@ -228,10 +224,10 @@ def training(sess, model, real_data, num_batches, saver, normer, is_pretrain=Fal
             # plot
             game_visualizer.plot_data(
                 samples[0:], FLAGS.seq_length, file_path=FLAGS.sample_dir + str(global_steps) + '_0.gif', if_save=True)
-            game_visualizer.plot_data(
-                samples[1:], FLAGS.seq_length, file_path=FLAGS.sample_dir + str(global_steps) + '_1.gif', if_save=True)
-            game_visualizer.plot_data(
-                samples[2:], FLAGS.seq_length, file_path=FLAGS.sample_dir + str(global_steps) + '_2.gif', if_save=True)
+            # game_visualizer.plot_data(
+            #     samples[1:], FLAGS.seq_length, file_path=FLAGS.sample_dir + str(global_steps) + '_1.gif', if_save=True)
+            # game_visualizer.plot_data(
+            #     samples[2:], FLAGS.seq_length, file_path=FLAGS.sample_dir + str(global_steps) + '_2.gif', if_save=True)
 
 
 def main(_):

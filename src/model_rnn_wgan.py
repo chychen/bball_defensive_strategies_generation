@@ -58,7 +58,6 @@ class RNN_WGAN(object):
         self.num_features = config.num_features
         self.latent_dims = config.latent_dims
         self.penalty_lambda = config.penalty_lambda
-        self.if_feed_previous = config.if_feed_previous
         # steps
         self.__global_steps = tf.train.get_or_create_global_step(graph=graph)
         self.__G_steps = 0
@@ -119,11 +118,13 @@ class RNN_WGAN(object):
 
         # summary writer
         self.G_summary_writer = tf.summary.FileWriter(
-            self.log_dir + 'G', graph=graph)
+            self.log_dir + 'G_pretrain', graph=graph)
+        self.G_summary_writer = tf.summary.FileWriter(
+            self.log_dir + 'G')
         self.D_summary_writer = tf.summary.FileWriter(
-            self.log_dir + 'D', graph=graph)
+            self.log_dir + 'D')
         self.D_valid_summary_writer = tf.summary.FileWriter(
-            self.log_dir + 'D_valid', graph=graph)
+            self.log_dir + 'D_valid')
 
     def __summarize(self, name, value, collections, postfix='', mode=True):
         """ Helper to create summaries for activations.
@@ -209,8 +210,7 @@ class RNN_WGAN(object):
                     self.__if_pretrain, lambda: self.__X[:, time_step, :], lambda: generated_point)
                 input_ = inputs[:, time_step, :]
                 concat_values = [input_]
-                if self.if_feed_previous:
-                    concat_values.append(generated_point)
+                concat_values.append(generated_point)
                 input_ = tf.concat(values=concat_values, axis=1)
                 with tf.variable_scope('fully_connect_concat') as scope:
                     lstm_input = layers.fully_connected(
@@ -290,7 +290,7 @@ class RNN_WGAN(object):
             if is_fake:
                 tf.get_variable_scope().reuse_variables()
             with tf.variable_scope('fully_connect_input') as scope:
-                for time_step in range(self.seq_length):                
+                for time_step in range(self.seq_length):
                     if time_step > 0:
                         tf.get_variable_scope().reuse_variables()
                     fully_connect_input = layers.fully_connected(
@@ -303,7 +303,7 @@ class RNN_WGAN(object):
                         scope=scope)
                     self.__summarize('fully_connect_input', fully_connect_input, collections=[
                         'D'], postfix='Activation')
-                blstm_input.append(fully_connect_input)
+                    blstm_input.append(fully_connect_input)
             with tf.variable_scope('stack_bi_lstm') as scope:
                 out_blstm_list, _, _ = rnn.stack_bidirectional_rnn(
                     cells_fw=[self.__lstm_cell()
@@ -315,12 +315,12 @@ class RNN_WGAN(object):
                     sequence_length=seq_len,
                     scope=scope
                 )
-            for i, out_blstm in enumerate(out_blstm_list):
-                self.__summarize('out_blstm', out_blstm, collections=[
-                    'D'], postfix='Activation')
-                if i > 0:
-                    tf.get_variable_scope().reuse_variables()
-                with tf.variable_scope('fully_connect') as scope:
+            with tf.variable_scope('fully_connect') as scope:
+                for i, out_blstm in enumerate(out_blstm_list):
+                    self.__summarize('out_blstm', out_blstm, collections=[
+                        'D'], postfix='Activation')
+                    if i > 0:
+                        tf.get_variable_scope().reuse_variables()
                     fconnect = layers.fully_connected(
                         inputs=out_blstm,
                         num_outputs=1,
@@ -331,7 +331,8 @@ class RNN_WGAN(object):
                         scope=scope)
                     self.__summarize('fconnect', fconnect, collections=[
                         'D'], postfix='Activation')
-                output_list.append(fconnect)
+                    output_list.append(fconnect)
+            # print(output_list)
             # stack, axis=1 -> [batch, time, feature]
             decisions = tf.stack(output_list, axis=1)
             print('decisions', decisions)
@@ -406,7 +407,8 @@ class RNN_WGAN(object):
         feed_dict = {self.__z: latent_inputs,
                      self.__X: real_data,
                      self.__if_pretrain: if_pretrain}
-        loss, global_steps = sess.run([self.__D_loss, self.__global_steps], feed_dict=feed_dict)
+        loss, global_steps = sess.run(
+            [self.__D_loss, self.__global_steps], feed_dict=feed_dict)
         if self.__D_steps % 500 == 0:
             summary = sess.run(self.__summary_D_valid_op, feed_dict=feed_dict)
             # log
