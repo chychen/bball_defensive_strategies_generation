@@ -22,11 +22,11 @@ from utils import Norm
 FLAGS = tf.app.flags.FLAGS
 
 # path parameters
-tf.app.flags.DEFINE_string('log_dir', 'v19/log/',
+tf.app.flags.DEFINE_string('log_dir', 'v20/log/',
                            "summary directory")
-tf.app.flags.DEFINE_string('checkpoints_dir', 'v19/checkpoints/',
+tf.app.flags.DEFINE_string('checkpoints_dir', 'v20/checkpoints/',
                            "checkpoints dir")
-tf.app.flags.DEFINE_string('sample_dir', 'v19/sample/',
+tf.app.flags.DEFINE_string('sample_dir', 'v20/sample/',
                            "directory to save generative result")
 tf.app.flags.DEFINE_string('data_path', '../data/F2.npy',
                            "summary directory")
@@ -40,9 +40,9 @@ tf.app.flags.DEFINE_integer('num_features', 23 + 70,
 tf.app.flags.DEFINE_integer('latent_dims', 23,
                             "dimensions of latant variable")
 # training parameters
-tf.app.flags.DEFINE_integer('total_epoches', 1000,
+tf.app.flags.DEFINE_integer('total_epoches', 1500,
                             "num of ephoches")
-tf.app.flags.DEFINE_integer('pretrain_epoches', 1000,
+tf.app.flags.DEFINE_integer('pretrain_epoches', 0,
                             "num of ephoch for supervised learning")
 tf.app.flags.DEFINE_integer('num_train_D', 5,
                             "num of times of training D before train G")
@@ -60,6 +60,8 @@ tf.app.flags.DEFINE_integer('rnn_layers', 2,
                             "num of layers for rnn")
 tf.app.flags.DEFINE_float('penalty_lambda', 10.0,
                           "regularization parameter of wGAN loss function")
+tf.app.flags.DEFINE_bool('if_handcrafted', True,
+                         "whether to use handcrafted features or not")
 # logging
 tf.app.flags.DEFINE_integer('save_model_freq', 40,
                             "num of epoches to save model")
@@ -98,6 +100,7 @@ class TrainingConfig(object):
         self.freq_train_D = FLAGS.freq_train_D
         self.pretrain_epoches = FLAGS.pretrain_epoches
         self.if_log_histogram = FLAGS.if_log_histogram
+        self.if_handcrafted = FLAGS.if_handcrafted
 
     def show(self):
         print("total_epoches:", self.total_epoches)
@@ -121,6 +124,7 @@ class TrainingConfig(object):
         print("freq_train_D:", self.freq_train_D)
         print("pretrain_epoches:", self.pretrain_epoches)
         print("if_log_histogram:", self.if_log_histogram)
+        print("if_handcrafted:", self.if_handcrafted)
 
 
 def z_samples(real_data):
@@ -201,7 +205,7 @@ def training(sess, model, real_data, num_batches, saver, normer, is_pretrain=Fal
                     samples[0:], FLAGS.seq_length, file_path=FLAGS.sample_dir + str(global_steps) + '_pretrain_train.gif', if_save=True)
                 # testing result
                 samples = model.generate(
-                    sess, sampled_noise)
+                    sess, real_data_batch[:, 0, :])
                 samples = normer.recover_data(samples)
                 game_visualizer.plot_data(
                     samples[0:], FLAGS.seq_length, file_path=FLAGS.sample_dir + str(global_steps) + '_pretrain_test.gif', if_save=True)

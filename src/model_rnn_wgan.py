@@ -59,6 +59,7 @@ class RNN_WGAN(object):
         self.latent_dims = config.latent_dims
         self.penalty_lambda = config.penalty_lambda
         self.if_log_histogram = config.if_log_histogram
+        self.if_handcrafted = config.if_handcrafted
         # steps
         self.__global_steps = tf.train.get_or_create_global_step(graph=graph)
         self.__G_pretrain_steps = 0
@@ -125,9 +126,12 @@ class RNN_WGAN(object):
         with tf.name_scope('WGAN'):
             self.__G_sample = self.__G(self.__z, seq_len=None, reuse=True)
             # feature extraction
-            real_extracted = self.normer.extract_features(self.__X_real)
-            fake_extracted = self.normer.extract_features(self.__G_sample)
-
+            if self.if_handcrafted:
+                real_extracted = self.normer.extract_features(self.__X_real)
+                fake_extracted = self.normer.extract_features(self.__G_sample)
+            else:
+                real_extracted = self.__X_real
+                fake_extracted = self.__G_sample
             D_real = self.__D(real_extracted, seq_len=None)
             D_fake = self.__D(fake_extracted, seq_len=None, reuse=True)
             # loss function
@@ -223,7 +227,7 @@ class RNN_WGAN(object):
 
         Return
         ------
-        result : float, shape=[batch, length, 23]
+        result : float, shape=[batch, length, 23+70]
             generative result (script)
         """
         with tf.variable_scope('G', reuse=reuse) as scope:
@@ -242,9 +246,6 @@ class RNN_WGAN(object):
                 fc_merge_list = []
                 if time_step > 0:
                     tf.get_variable_scope().reuse_variables()
-                # # if pretrain -> feed groudtruth as last output
-                # generated_point = tf.cond(
-                #     self.__if_pretrain, lambda: self.__X[:, time_step, :], lambda: generated_point)
                 if if_pretrain:
                     input_ = inputs[:, time_step, :]
                 else:
@@ -271,8 +272,24 @@ class RNN_WGAN(object):
                     self.__summarize('cell_out', cell_out, collections=[
                         'G'], postfix='Activation')
                 with tf.variable_scope('position_fc') as scope:
-                    position_fc = layers.fully_connected(
+                    position_fc0 = layers.fully_connected(
                         inputs=cell_out,
+                        num_outputs=23*4,
+                        activation_fn=self.__leaky_relu,
+                        weights_initializer=layers.xavier_initializer(
+                            uniform=False),
+                        biases_initializer=tf.zeros_initializer(),
+                        scope=scope)
+                    position_fc1 = layers.fully_connected(
+                        inputs=position_fc0,
+                        num_outputs=23*2,
+                        activation_fn=self.__leaky_relu,
+                        weights_initializer=layers.xavier_initializer(
+                            uniform=False),
+                        biases_initializer=tf.zeros_initializer(),
+                        scope=scope)
+                    position_fc = layers.fully_connected(
+                        inputs=position_fc1,
                         num_outputs=23,
                         activation_fn=self.__leaky_relu,
                         weights_initializer=layers.xavier_initializer(
@@ -428,7 +445,7 @@ class RNN_WGAN(object):
         """ train one batch on G
         """
         feed_dict = {self.__X: real_data}
-        loss = sess.run(self.__G_pretrain_loss, feed_dict=feed_dict)
+        loss, global_steps = sess.run([self.__G_pretrain_loss, self.__global_steps], feed_dict=feed_dict)
         if not self.if_log_histogram or self.__G_pretrain_steps % 100 == 0:  # % 100 to save space
             summary = sess.run(self.__summary_G_pretrain_valid_op,
                                feed_dict=feed_dict)
