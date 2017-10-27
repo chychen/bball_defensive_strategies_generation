@@ -271,7 +271,7 @@ class RNN_WGAN(object):
                         inputs=lstm_input, state=state, scope=scope)
                     self.__summarize('cell_out', cell_out, collections=[
                         'G'], postfix='Activation')
-                with tf.variable_scope('position_fc') as scope:
+                with tf.variable_scope('position_fc0') as scope:
                     position_fc0 = layers.fully_connected(
                         inputs=cell_out,
                         num_outputs=23*4,
@@ -280,6 +280,7 @@ class RNN_WGAN(object):
                             uniform=False),
                         biases_initializer=tf.zeros_initializer(),
                         scope=scope)
+                with tf.variable_scope('position_fc1') as scope:
                     position_fc1 = layers.fully_connected(
                         inputs=position_fc0,
                         num_outputs=23*2,
@@ -288,6 +289,7 @@ class RNN_WGAN(object):
                             uniform=False),
                         biases_initializer=tf.zeros_initializer(),
                         scope=scope)
+                with tf.variable_scope('position_fc') as scope:
                     position_fc = layers.fully_connected(
                         inputs=position_fc1,
                         num_outputs=23,

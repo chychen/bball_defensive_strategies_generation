@@ -48,7 +48,7 @@ tf.app.flags.DEFINE_integer('num_train_D', 5,
                             "num of times of training D before train G")
 tf.app.flags.DEFINE_integer('num_pretrain_D', 10,
                             "num of ephoch to train D before train G")
-tf.app.flags.DEFINE_integer('freq_train_D', 50,
+tf.app.flags.DEFINE_integer('freq_train_D', 51,
                             "freqence of num ephoch to train D more")
 tf.app.flags.DEFINE_integer('batch_size', 256,
                             "batch size")
@@ -63,9 +63,9 @@ tf.app.flags.DEFINE_float('penalty_lambda', 10.0,
 tf.app.flags.DEFINE_bool('if_handcrafted', True,
                          "whether to use handcrafted features or not")
 # logging
-tf.app.flags.DEFINE_integer('save_model_freq', 40,
+tf.app.flags.DEFINE_integer('save_model_freq', 50,
                             "num of epoches to save model")
-tf.app.flags.DEFINE_integer('save_result_freq', 20,
+tf.app.flags.DEFINE_integer('save_result_freq', 25,
                             "num of epoches to save gif")
 tf.app.flags.DEFINE_integer('log_freq', 200,
                             "num of steps to log")
