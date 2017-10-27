@@ -81,7 +81,7 @@ class Norm(object):
             t_pos = t_data[:, :, :23]
             # x y z speed = 23
             t_speed = tf.concat(
-                [(t_pos[:, 1:100, :] - t_pos[:, 0:99, :]), tf.zeros(shape=[t_shape[0], 1, 23])], axis=1)
+                [(t_pos[:, 1:t_shape[1], :] - t_pos[:, 0:t_shape[1]-1, :]), tf.zeros(shape=[t_shape[0], 1, 23])], axis=1)
             # x y correlation of 1 ball, 10 players and 2 basket = (13*13-13)/2*2=156
             t_correlation = []
             for axis_ in range(2):

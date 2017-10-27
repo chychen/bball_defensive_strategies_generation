@@ -22,26 +22,28 @@ from utils import Norm
 FLAGS = tf.app.flags.FLAGS
 
 # path parameters
-tf.app.flags.DEFINE_string('log_dir', 'v18/log/',
+tf.app.flags.DEFINE_string('log_dir', 'v19/log/',
                            "summary directory")
-tf.app.flags.DEFINE_string('checkpoints_dir', 'v18/checkpoints/',
+tf.app.flags.DEFINE_string('checkpoints_dir', 'v19/checkpoints/',
                            "checkpoints dir")
-tf.app.flags.DEFINE_string('sample_dir', 'v18/sample/',
+tf.app.flags.DEFINE_string('sample_dir', 'v19/sample/',
                            "directory to save generative result")
 tf.app.flags.DEFINE_string('data_path', '../data/F2.npy',
                            "summary directory")
 tf.app.flags.DEFINE_string('restore_path', None,
                            "path of saving model eg: checkpoints/model.ckpt-5")
 # input parameters
-tf.app.flags.DEFINE_integer('seq_length', 100,
+tf.app.flags.DEFINE_integer('seq_length', 100 - 1,
                             "the maximum length of one training data")
 tf.app.flags.DEFINE_integer('num_features', 23 + 70,
                             "3 (ball x y z) + 10 (players) * 2 (x and y) + 70 (player positions as 10 7-dims-one-hot)")
-tf.app.flags.DEFINE_integer('latent_dims', 10,
+tf.app.flags.DEFINE_integer('latent_dims', 23,
                             "dimensions of latant variable")
 # training parameters
-tf.app.flags.DEFINE_integer('total_epoches', 3000,
+tf.app.flags.DEFINE_integer('total_epoches', 1000,
                             "num of ephoches")
+tf.app.flags.DEFINE_integer('pretrain_epoches', 1000,
+                            "num of ephoch for supervised learning")
 tf.app.flags.DEFINE_integer('num_train_D', 5,
                             "num of times of training D before train G")
 tf.app.flags.DEFINE_integer('num_pretrain_D', 10,
@@ -58,8 +60,6 @@ tf.app.flags.DEFINE_integer('rnn_layers', 2,
                             "num of layers for rnn")
 tf.app.flags.DEFINE_float('penalty_lambda', 10.0,
                           "regularization parameter of wGAN loss function")
-tf.app.flags.DEFINE_integer('pretrain_epoches', 0,
-                            "num of ephoch to train label as input")
 # logging
 tf.app.flags.DEFINE_integer('save_model_freq', 40,
                             "num of epoches to save model")
@@ -67,6 +67,8 @@ tf.app.flags.DEFINE_integer('save_result_freq', 20,
                             "num of epoches to save gif")
 tf.app.flags.DEFINE_integer('log_freq', 200,
                             "num of steps to log")
+tf.app.flags.DEFINE_bool('if_log_histogram', False,
+                         "whether to log histogram or not")
 
 
 class TrainingConfig(object):
@@ -95,6 +97,7 @@ class TrainingConfig(object):
         self.num_pretrain_D = FLAGS.num_pretrain_D
         self.freq_train_D = FLAGS.freq_train_D
         self.pretrain_epoches = FLAGS.pretrain_epoches
+        self.if_log_histogram = FLAGS.if_log_histogram
 
     def show(self):
         print("total_epoches:", self.total_epoches)
@@ -117,12 +120,15 @@ class TrainingConfig(object):
         print("num_pretrain_D:", self.num_pretrain_D)
         print("freq_train_D:", self.freq_train_D)
         print("pretrain_epoches:", self.pretrain_epoches)
+        print("if_log_histogram:", self.if_log_histogram)
 
 
-def z_samples():
-    # TODO sample z from normal-distribution than
-    return np.random.uniform(
-        -1., 1., size=[FLAGS.batch_size, FLAGS.seq_length, FLAGS.latent_dims])
+def z_samples(real_data):
+    # # TODO sample z from normal-distribution than
+    # return np.random.uniform(
+    #     -1., 1., size=[FLAGS.batch_size, FLAGS.seq_length, FLAGS.latent_dims])
+    shuffled_indexes = np.random.permutation(real_data.shape[0])[:FLAGS.batch_size]
+    return real_data[shuffled_indexes, 0, :]
 
 
 def training(sess, model, real_data, num_batches, saver, normer, is_pretrain=False):
@@ -137,97 +143,143 @@ def training(sess, model, real_data, num_batches, saver, normer, is_pretrain=Fal
     num_valid_batches = num_batches // 10 * 1
 
     # fixed sampled result input noise
-    sampled_noise = z_samples()
+    sampled_noise = z_samples(real_data)
 
     if is_pretrain:
-        num_epoches = FLAGS.pretrain_epoches
-    else:
-        num_epoches = FLAGS.total_epoches
-    D_loss_mean = 0.0
-    G_loss_mean = 0.0
-    log_counter = 0
-    # to evaluate time cost
-    start_time = time.time()
-    for epoch_id in range(num_epoches):
-        # shuffle the data
-        shuffled_indexes = np.random.permutation(real_data.shape[0])
-        real_data = real_data[shuffled_indexes]
+        G_loss_mean = 0.0
+        # to evaluate time cost
+        start_time = time.time()
+        for epoch_id in range(FLAGS.pretrain_epoches):
+            # shuffle the data
+            shuffled_indexes = np.random.permutation(real_data.shape[0])
+            real_data = real_data[shuffled_indexes]
+            shuffled_indexes = np.random.permutation(valid_data.shape[0])
+            valid_data = valid_data[shuffled_indexes]
 
-        batch_id = 0
-        while batch_id < num_batches - FLAGS.num_train_D:
-            real_data_batch = None
-            if epoch_id < FLAGS.num_pretrain_D or (epoch_id + 1) % FLAGS.freq_train_D == 0:
-                num_train_D = num_batches * 5  # TODO
-            else:
-                num_train_D = FLAGS.num_train_D
-                # num_train_D = num_batches
-            for id_ in range(num_train_D):
-                if (id_ + 1) % num_batches == 0:
-                    # shuffle the data
-                    shuffled_indexes = np.random.permutation(
-                        real_data.shape[0])
-                    real_data = real_data[shuffled_indexes]
+            batch_id = 0
+            for batch_id in range(num_batches):
                 # make sure not exceed the boundary
-                data_idx = batch_id * \
-                    FLAGS.batch_size % (real_data.shape[0] - FLAGS.batch_size)
+                data_idx = batch_id * FLAGS.batch_size % (
+                    real_data.shape[0] - FLAGS.batch_size)
                 # data
                 real_data_batch = real_data[data_idx:data_idx +
                                             FLAGS.batch_size]
-                # train D
-                D_loss_mean, global_steps = model.D_step(
-                    sess, z_samples(), real_data_batch, is_pretrain)
-                batch_id += 1
-                log_counter += 1
+                # pretrain G
+                G_loss_mean, global_steps = model.G_pretrain_step(
+                    sess, real_data_batch)
                 
                 # log validation loss
-                data_idx = global_steps * \
-                    FLAGS.batch_size % (valid_data.shape[0] - FLAGS.batch_size)
+                data_idx = global_steps * FLAGS.batch_size % (
+                    valid_data.shape[0] - FLAGS.batch_size)
                 valid_data_batch = valid_data[data_idx:data_idx +
-                                            FLAGS.batch_size]
-                D_valid_loss_mean = model.D_log_valid_loss(
-                    sess, z_samples(), valid_data_batch)
+                                                FLAGS.batch_size]
+                G_valid_loss_mean = model.G_pretrain_log_valid_loss(
+                    sess, valid_data_batch)
+                # logging
+                if batch_id % FLAGS.log_freq == 0:
+                    end_time = time.time()
+                    print("%d, epoches, %d steps, mean G_loss: %f, mean G_valid_loss: %f, time cost: %f(sec)" %
+                          (epoch_id,
+                           global_steps,
+                           G_loss_mean,
+                           G_valid_loss_mean,
+                           (end_time - start_time)))
+                    start_time = time.time()  # save checkpoints
+            # save model
+            if (epoch_id % FLAGS.save_model_freq) == 0 or epoch_id == FLAGS.total_epoches - 1:
+                save_path = saver.save(
+                    sess, FLAGS.checkpoints_dir + "model.ckpt",
+                    global_step=global_steps)
+                print("Model saved in file: %s" % save_path)
+            # plot generated sample
+            if (epoch_id % FLAGS.save_result_freq) == 0 or epoch_id == FLAGS.total_epoches - 1:
+                # training result
+                samples = model.generate_pretrain(
+                    sess, real_data_batch)
+                samples = normer.recover_data(samples)
+                game_visualizer.plot_data(
+                    samples[0:], FLAGS.seq_length, file_path=FLAGS.sample_dir + str(global_steps) + '_pretrain_train.gif', if_save=True)
+                # testing result
+                samples = model.generate(
+                    sess, sampled_noise)
+                samples = normer.recover_data(samples)
+                game_visualizer.plot_data(
+                    samples[0:], FLAGS.seq_length, file_path=FLAGS.sample_dir + str(global_steps) + '_pretrain_test.gif', if_save=True)
+    else:
+        D_loss_mean = 0.0
+        G_loss_mean = 0.0
+        log_counter = 0
+        # to evaluate time cost
+        start_time = time.time()
+        for epoch_id in range(FLAGS.total_epoches):
+            # shuffle the data
+            shuffled_indexes = np.random.permutation(real_data.shape[0])
+            real_data = real_data[shuffled_indexes]
+            shuffled_indexes = np.random.permutation(valid_data.shape[0])
+            valid_data = valid_data[shuffled_indexes]
 
-            # train G
-            G_loss_mean, global_steps = model.G_step(
-                sess, z_samples(), is_pretrain, real_data_batch)
-            log_counter += 1
-            # if epoch_id >= FLAGS.num_pretrain_D:
-            #     for id_ in range(num_train_D):
-            #         G_loss_mean, global_steps = model.G_step(
-            #             sess, z_samples(), is_pretrain, real_data_batch)
-            #         log_counter += 1
+            batch_id = 0
+            while batch_id < num_batches - FLAGS.num_train_D:
+                real_data_batch = None
+                if epoch_id < FLAGS.num_pretrain_D or (epoch_id + 1) % FLAGS.freq_train_D == 0:
+                    num_train_D = num_batches * 5  # TODO
+                else:
+                    num_train_D = FLAGS.num_train_D
+                for id_ in range(num_train_D):
+                    # make sure not exceed the boundary
+                    data_idx = batch_id * \
+                        FLAGS.batch_size % (
+                            real_data.shape[0] - FLAGS.batch_size)
+                    # data
+                    real_data_batch = real_data[data_idx:data_idx +
+                                                FLAGS.batch_size]
+                    # train D
+                    D_loss_mean, global_steps = model.D_step(
+                        sess, z_samples(real_data), real_data_batch)
+                    batch_id += 1
+                    log_counter += 1
 
-            # logging
-            if log_counter >= FLAGS.log_freq:
-                end_time = time.time()
-                log_counter = 0
-                print("%d, epoches, %d steps, mean D_loss: %f, mean D_valid_loss: %f, mean G_loss: %f, time cost: %f(sec)" %
-                      (epoch_id,
-                       global_steps,
-                       D_loss_mean,
-                       D_valid_loss_mean,
-                       G_loss_mean,
-                       (end_time - start_time)))
-                start_time = time.time()  # save checkpoints
-        # save model
-        if (epoch_id % FLAGS.save_model_freq) == 0 or epoch_id == FLAGS.total_epoches - 1:
-            save_path = saver.save(
-                sess, FLAGS.checkpoints_dir + "model.ckpt",
-                global_step=global_steps)
-            print("Model saved in file: %s" % save_path)
-        # plot generated sample
-        if (epoch_id % FLAGS.save_result_freq) == 0 or epoch_id == FLAGS.total_epoches - 1:
-            samples = model.generate(
-                sess, sampled_noise, is_pretrain, real_data_batch)
-            # scale recovering
-            samples = normer.recover_data(samples)
-            # plot
-            game_visualizer.plot_data(
-                samples[0:], FLAGS.seq_length, file_path=FLAGS.sample_dir + str(global_steps) + '_0.gif', if_save=True)
-            # game_visualizer.plot_data(
-            #     samples[1:], FLAGS.seq_length, file_path=FLAGS.sample_dir + str(global_steps) + '_1.gif', if_save=True)
-            # game_visualizer.plot_data(
-            #     samples[2:], FLAGS.seq_length, file_path=FLAGS.sample_dir + str(global_steps) + '_2.gif', if_save=True)
+                    # log validation loss
+                    data_idx = global_steps * \
+                        FLAGS.batch_size % (
+                            valid_data.shape[0] - FLAGS.batch_size)
+                    valid_data_batch = valid_data[data_idx:data_idx +
+                                                  FLAGS.batch_size]
+                    D_valid_loss_mean = model.D_log_valid_loss(
+                        sess, z_samples(real_data), valid_data_batch)
+
+                # train G
+                G_loss_mean, global_steps = model.G_step(
+                    sess, z_samples(real_data))
+                log_counter += 1
+
+                # logging
+                if log_counter >= FLAGS.log_freq:
+                    end_time = time.time()
+                    log_counter = 0
+                    print("%d, epoches, %d steps, mean D_loss: %f, mean D_valid_loss: %f, mean G_loss: %f, time cost: %f(sec)" %
+                          (epoch_id,
+                           global_steps,
+                           D_loss_mean,
+                           D_valid_loss_mean,
+                           G_loss_mean,
+                           (end_time - start_time)))
+                    start_time = time.time()  # save checkpoints
+            # save model
+            if (epoch_id % FLAGS.save_model_freq) == 0 or epoch_id == FLAGS.total_epoches - 1:
+                save_path = saver.save(
+                    sess, FLAGS.checkpoints_dir + "model.ckpt",
+                    global_step=global_steps)
+                print("Model saved in file: %s" % save_path)
+            # plot generated sample
+            if (epoch_id % FLAGS.save_result_freq) == 0 or epoch_id == FLAGS.total_epoches - 1:
+                samples = model.generate(
+                    sess, sampled_noise)
+                # scale recovering
+                samples = normer.recover_data(samples)
+                # plot
+                game_visualizer.plot_data(
+                    samples[0:], FLAGS.seq_length, file_path=FLAGS.sample_dir + str(global_steps) + '.gif', if_save=True)
 
 
 def main(_):
@@ -238,7 +290,8 @@ def main(_):
 
         # normalization
         normer = Norm(real_data)
-        real_data = normer.get_normed_data()[:, :FLAGS.seq_length, :]
+        # +1 for supervised learning
+        real_data = normer.get_normed_data()[:, :FLAGS.seq_length + 1, :]
         print(real_data.shape)
 
         # number of batches

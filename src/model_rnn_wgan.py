@@ -58,67 +58,38 @@ class RNN_WGAN(object):
         self.num_features = config.num_features
         self.latent_dims = config.latent_dims
         self.penalty_lambda = config.penalty_lambda
+        self.if_log_histogram = config.if_log_histogram
         # steps
         self.__global_steps = tf.train.get_or_create_global_step(graph=graph)
+        self.__G_pretrain_steps = 0
         self.__G_steps = 0
         self.__D_steps = 0
         # data
         self.__z = tf.placeholder(dtype=tf.float32, shape=[
-            self.batch_size, self.seq_length, self.latent_dims], name='latent_input')
+            self.batch_size, self.num_features], name='first_frame')
         self.__X = tf.placeholder(dtype=tf.float32, shape=[
-            self.batch_size, self.seq_length, self.num_features], name='real_data')
-        self.__if_pretrain = tf.placeholder(
-            dtype=tf.bool, shape=[], name='if_pretrain')
-        # model
-        self.__G_sample = self.__G(self.__z, seq_len=None)
-        # feature extraction
-        real_extracted = self.normer.extract_features(self.__X)
-        fake_extracted = self.normer.extract_features(self.__G_sample)
+            self.batch_size, self.seq_length + 1, self.num_features], name='real_data')
+        self.__X_real = self.__X[:, :self.seq_length, :]
+        self.__X_Label = self.__X[:, 1:, :]
+        # supervised learning : pre-training
+        self.__build_pretrain()
+        # adversarial learning : wgan
+        self.__build_wgan()
 
-        D_real = self.__D(real_extracted, seq_len=None)
-        D_fake = self.__D(fake_extracted, is_fake=True)
-        # loss function
-        self.__G_loss = self.__G_loss_fn(D_fake)
-        self.__D_loss, F_real, F_fake, grad_pen = self.__D_loss_fn(
-            real_extracted, fake_extracted, D_fake, D_real, self.penalty_lambda)
-        # optimizer
-        # G
-        theta_G, theta_D = self.__get_var_list()
-        G_optimizer = tf.train.AdamOptimizer(
-            learning_rate=self.learning_rate, beta1=0.5, beta2=0.9)
-        G_grads = tf.gradients(self.__G_loss, theta_G)
-        G_grads = list(zip(G_grads, theta_G))
-        for grad, var in G_grads:
-            self.__summarize(var.name, grad, collections='G',
-                             postfix='gradient')
-        self.__G_train_op = G_optimizer.apply_gradients(
-            grads_and_vars=G_grads, global_step=self.__global_steps)
-        # D
-        D_optimizer = tf.train.AdamOptimizer(
-            learning_rate=self.learning_rate, beta1=0.5, beta2=0.9)
-        D_grads = tf.gradients(self.__D_loss, theta_D)
-        D_grads = list(zip(D_grads, theta_D))
-        for grad, var in D_grads:
-            self.__summarize(var.name, grad, collections='D',
-                             postfix='gradient')
-        self.__D_train_op = D_optimizer.apply_gradients(
-            grads_and_vars=D_grads, global_step=self.__global_steps)
-
-        tf.summary.scalar('G_loss', self.__G_loss, collections=['G'])
-
-        tf.summary.scalar('D_loss', self.__D_loss,
-                          collections=['D', 'D_valid'])
-        tf.summary.scalar('F_real', F_real, collections=['D'])
-        tf.summary.scalar('F_fake', F_fake, collections=['D'])
-        tf.summary.scalar('grad_pen', grad_pen, collections=['D'])
+        self.__summary_G_pretrain_op = tf.summary.merge(
+            tf.get_collection('G_pretrain'))
+        self.__summary_G_pretrain_valid_op = tf.summary.merge(
+            tf.get_collection('G_pretrain_valid'))
         self.__summary_G_op = tf.summary.merge(tf.get_collection('G'))
         self.__summary_D_op = tf.summary.merge(tf.get_collection('D'))
         self.__summary_D_valid_op = tf.summary.merge(
             tf.get_collection('D_valid'))
 
         # summary writer
-        self.G_summary_writer = tf.summary.FileWriter(
+        self.G_pretrain_summary_writer = tf.summary.FileWriter(
             self.log_dir + 'G_pretrain', graph=graph)
+        self.G_pretrain_valid_summary_writer = tf.summary.FileWriter(
+            self.log_dir + 'G_pretrain_valid', graph=graph)
         self.G_summary_writer = tf.summary.FileWriter(
             self.log_dir + 'G')
         self.D_summary_writer = tf.summary.FileWriter(
@@ -126,7 +97,74 @@ class RNN_WGAN(object):
         self.D_valid_summary_writer = tf.summary.FileWriter(
             self.log_dir + 'D_valid')
 
-    def __summarize(self, name, value, collections, postfix='', mode=True):
+    def __build_pretrain(self):
+        with tf.name_scope('G_pretrain'):
+            self.__G_pretrain_sample = self.__G(self.__X_real, seq_len=None, if_pretrain=True)
+            # loss function TODO
+            with tf.name_scope('G_pretrain_loss'):
+                abs_diff = tf.losses.absolute_difference(
+                    self.__X_Label, self.__G_pretrain_sample, weights=1.0)
+                self.__G_pretrain_loss = tf.reduce_mean(abs_diff)
+            # optimizer G-pretrain
+            theta_G, _ = self.__get_var_list()
+            with tf.name_scope('G_pretrain_optimizer') as scope:
+                G_optimizer = tf.train.AdamOptimizer(
+                    learning_rate=self.learning_rate, name="Pretrain_Adam")
+                G_grads = tf.gradients(self.__G_pretrain_loss, theta_G)
+                G_grads = list(zip(G_grads, theta_G))
+                self.__G_pretrain_op = G_optimizer.apply_gradients(
+                    grads_and_vars=G_grads, global_step=self.__global_steps)
+            # logging
+            for grad, var in G_grads:
+                self.__summarize(var.name, grad, collections='G_pretrain',
+                                 postfix='gradient')
+            tf.summary.scalar(
+                'G_pretrain_loss', self.__G_pretrain_loss, collections=['G_pretrain', 'G_pretrain_valid'])
+
+    def __build_wgan(self):
+        with tf.name_scope('WGAN'):
+            self.__G_sample = self.__G(self.__z, seq_len=None, reuse=True)
+            # feature extraction
+            real_extracted = self.normer.extract_features(self.__X_real)
+            fake_extracted = self.normer.extract_features(self.__G_sample)
+
+            D_real = self.__D(real_extracted, seq_len=None)
+            D_fake = self.__D(fake_extracted, seq_len=None, reuse=True)
+            # loss function
+            self.__G_loss = self.__G_loss_fn(D_fake)
+            self.__D_loss, F_real, F_fake, grad_pen = self.__D_loss_fn(
+                real_extracted, fake_extracted, D_fake, D_real, self.penalty_lambda)
+            theta_G, theta_D = self.__get_var_list()
+            with tf.name_scope('G_optimizer') as scope:
+                G_optimizer = tf.train.AdamOptimizer(
+                    learning_rate=self.learning_rate, beta1=0.5, beta2=0.9)
+                G_grads = tf.gradients(self.__G_loss, theta_G)
+                G_grads = list(zip(G_grads, theta_G))
+                self.__G_train_op = G_optimizer.apply_gradients(
+                    grads_and_vars=G_grads, global_step=self.__global_steps)
+            with tf.name_scope('D_optimizer') as scope:
+                D_optimizer = tf.train.AdamOptimizer(
+                    learning_rate=self.learning_rate, beta1=0.5, beta2=0.9)
+                D_grads = tf.gradients(self.__D_loss, theta_D)
+                D_grads = list(zip(D_grads, theta_D))
+                self.__D_train_op = D_optimizer.apply_gradients(
+                    grads_and_vars=D_grads, global_step=self.__global_steps)
+            # logging
+            for grad, var in G_grads:
+                self.__summarize(var.name, grad, collections='G',
+                                 postfix='gradient')
+            for grad, var in D_grads:
+                self.__summarize(var.name, grad, collections='D',
+                                 postfix='gradient')
+            tf.summary.scalar('G_loss', self.__G_loss, collections=['G'])
+
+            tf.summary.scalar('D_loss', self.__D_loss,
+                              collections=['D', 'D_valid'])
+            tf.summary.scalar('F_real', F_real, collections=['D'])
+            tf.summary.scalar('F_fake', F_fake, collections=['D'])
+            tf.summary.scalar('grad_pen', grad_pen, collections=['D'])
+
+    def __summarize(self, name, value, collections, postfix=''):
         """ Helper to create summaries for activations.
         Creates a summary that provides a histogram of activations.
         Creates a summary that measures the sparsity of activations.
@@ -140,7 +178,7 @@ class RNN_WGAN(object):
         -------
             nothing
         """
-        if mode:
+        if self.if_log_histogram:
             tensor_name = name + '/' + postfix
             tf.summary.histogram(tensor_name,
                                  value, collections=collections)
@@ -174,8 +212,8 @@ class RNN_WGAN(object):
                             # activation=self.__leaky_relu, cell_clip=2,
                             activation=tf.nn.tanh, reuse=tf.get_variable_scope().reuse)
 
-    def __G(self, inputs, seq_len=None):
-        """
+    def __G(self, inputs, seq_len=None, reuse=False, if_pretrain=False):
+        """ TODO
         Inputs
         ------
         inputs : float, shape=[batch, length, dims]
@@ -188,16 +226,15 @@ class RNN_WGAN(object):
         result : float, shape=[batch, length, 23]
             generative result (script)
         """
-        with tf.variable_scope('G') as scope:
+        with tf.variable_scope('G', reuse=reuse) as scope:
             # init
             cell = rnn.MultiRNNCell(
                 [self.__lstm_cell() for _ in range(self.rnn_layers)])
             state = cell.zero_state(
                 batch_size=self.batch_size, dtype=tf.float32)
             # as we feed the output as the input to the next, we 'invent' the
-            # initial 'output' as generated_point in the begining.
-            generated_point = tf.random_uniform(
-                shape=[self.batch_size, self.num_features], minval=0.0, maxval=1.0)
+            # initial 'output' as generated_point in the begining. TODO
+            generated_point = inputs # first frame
             # model
             output_list = []
             first_player_fc = []
@@ -205,13 +242,18 @@ class RNN_WGAN(object):
                 fc_merge_list = []
                 if time_step > 0:
                     tf.get_variable_scope().reuse_variables()
-                # if pretrain -> feed groudtruth as last output
-                generated_point = tf.cond(
-                    self.__if_pretrain, lambda: self.__X[:, time_step, :], lambda: generated_point)
-                input_ = inputs[:, time_step, :]
-                concat_values = [input_]
-                concat_values.append(generated_point)
-                input_ = tf.concat(values=concat_values, axis=1)
+                # # if pretrain -> feed groudtruth as last output
+                # generated_point = tf.cond(
+                #     self.__if_pretrain, lambda: self.__X[:, time_step, :], lambda: generated_point)
+                if if_pretrain:
+                    input_ = inputs[:, time_step, :]
+                else:
+                    input_ = generated_point
+                # generated_point = generated_point
+                # input_ = 
+                # concat_values = [input_]
+                # concat_values.append(generated_point)
+                # input_ = tf.concat(values=concat_values, axis=1)
                 with tf.variable_scope('fully_connect_concat') as scope:
                     lstm_input = layers.fully_connected(
                         inputs=input_,
@@ -268,7 +310,7 @@ class RNN_WGAN(object):
             print('result', result)
             return result
 
-    def __D(self, inputs, seq_len=None, is_fake=False):
+    def __D(self, inputs, seq_len=None, reuse=False):
         """
         Inputs
         ------
@@ -282,13 +324,11 @@ class RNN_WGAN(object):
         decision : bool
             real(from data) or fake(from G)
         """
-        # unstack, axis=1 -> [batch, time, feature]
-        inputs = tf.unstack(inputs, num=self.seq_length, axis=1)
-        with tf.variable_scope('D') as scope:
+        with tf.variable_scope('D', reuse=reuse) as scope:
+            # unstack, axis=1 -> [batch, time, feature]
+            inputs = tf.unstack(inputs, num=self.seq_length, axis=1)
             blstm_input = []
             output_list = []
-            if is_fake:
-                tf.get_variable_scope().reuse_variables()
             with tf.variable_scope('fully_connect_input') as scope:
                 for time_step in range(self.seq_length):
                     if time_step > 0:
@@ -357,7 +397,7 @@ class RNN_WGAN(object):
                 [self.batch_size, 1, 1], minval=0.0, maxval=1.0)
             __X_inter = epsilon * __X + (1.0 - epsilon) * __G_sample
             grad = tf.gradients(
-                self.__D(__X_inter, is_fake=True), [__X_inter])[0]
+                self.__D(__X_inter, seq_len=None, reuse=True), [__X_inter])[0]
             sum_ = tf.reduce_sum(tf.square(grad), axis=[1, 2])
             grad_norm = tf.sqrt(sum_)
             grad_pen = penalty_lambda * tf.reduce_mean(
@@ -368,60 +408,90 @@ class RNN_WGAN(object):
             loss = f_fake - f_real + grad_pen
         return loss, f_real, f_fake, grad_pen
 
-    def G_step(self, sess, latent_inputs, if_pretrain=False, real_data=None):
+    def G_pretrain_step(self, sess, real_data):
+        """ train one batch on G
+        """
+        self.__G_pretrain_steps += 1
+        feed_dict = {self.__X: real_data}
+        loss, global_steps, _ = sess.run(
+            [self.__G_pretrain_loss, self.__global_steps,
+                self.__G_pretrain_op], feed_dict=feed_dict)
+        if not self.if_log_histogram or self.__G_pretrain_steps % 100 == 0:  # % 100 to save space
+            summary = sess.run(self.__summary_G_pretrain_op,
+                               feed_dict=feed_dict)
+            # log
+            self.G_pretrain_summary_writer.add_summary(
+                summary, global_step=global_steps)
+        return loss, global_steps
+
+    def G_pretrain_log_valid_loss(self, sess, real_data):
+        """ train one batch on G
+        """
+        feed_dict = {self.__X: real_data}
+        loss = sess.run(self.__G_pretrain_loss, feed_dict=feed_dict)
+        if not self.if_log_histogram or self.__G_pretrain_steps % 100 == 0:  # % 100 to save space
+            summary = sess.run(self.__summary_G_pretrain_valid_op,
+                               feed_dict=feed_dict)
+            # log
+            self.G_pretrain_valid_summary_writer.add_summary(
+                summary, global_step=global_steps)
+        return loss
+
+    def G_step(self, sess, latent_inputs):
         """ train one batch on G
         """
         self.__G_steps += 1
-        feed_dict = {self.__z: latent_inputs,
-                     self.__X: real_data,
-                     self.__if_pretrain: if_pretrain}
+        feed_dict = {self.__z: latent_inputs}
         loss, global_steps, _ = sess.run(
             [self.__G_loss, self.__global_steps,
                 self.__G_train_op], feed_dict=feed_dict)
-        if self.__G_steps % 100 == 0:
+        if not self.if_log_histogram or self.__G_steps % 100 == 0:  # % 100 to save space
             summary = sess.run(self.__summary_G_op, feed_dict=feed_dict)
             # log
             self.G_summary_writer.add_summary(
                 summary, global_step=global_steps)
         return loss, global_steps
 
-    def D_step(self, sess, latent_inputs, real_data, if_pretrain=False):
+    def D_step(self, sess, latent_inputs, real_data):
         """ train one batch on D
         """
         self.__D_steps += 1
         feed_dict = {self.__z: latent_inputs,
-                     self.__X: real_data,
-                     self.__if_pretrain: if_pretrain}
+                     self.__X: real_data}
         loss, global_steps, _ = sess.run(
             [self.__D_loss, self.__global_steps, self.__D_train_op], feed_dict=feed_dict)
-        if self.__D_steps % 500 == 0:
+        if not self.if_log_histogram or self.__D_steps % 500 == 0:  # % 500 to save space
             summary = sess.run(self.__summary_D_op, feed_dict=feed_dict)
             # log
             self.D_summary_writer.add_summary(
                 summary, global_step=global_steps)
         return loss, global_steps
 
-    def D_log_valid_loss(self, sess, latent_inputs, real_data, if_pretrain=False):
+    def D_log_valid_loss(self, sess, latent_inputs, real_data):
         """ one batch valid loss
         """
         feed_dict = {self.__z: latent_inputs,
-                     self.__X: real_data,
-                     self.__if_pretrain: if_pretrain}
+                     self.__X: real_data}
         loss, global_steps = sess.run(
             [self.__D_loss, self.__global_steps], feed_dict=feed_dict)
-        if self.__D_steps % 500 == 0:
+        if not self.if_log_histogram or self.__D_steps % 500 == 0:  # % 500 to save space
             summary = sess.run(self.__summary_D_valid_op, feed_dict=feed_dict)
             # log
             self.D_valid_summary_writer.add_summary(
                 summary, global_step=global_steps)
         return loss
 
-    def generate(self, sess, latent_inputs, if_pretrain=False, real_data=None):
+    def generate_pretrain(self, sess, real_data):
         """ to generate result
         """
-        feed_dict = {self.__z: latent_inputs,
-                     self.__X: real_data,
-                     self.__if_pretrain: if_pretrain}
+        feed_dict = {self.__X: real_data}
+        result = sess.run(self.__G_pretrain_sample, feed_dict=feed_dict)
+        return result
+
+    def generate(self, sess, latent_inputs):
+        """ to generate result
+        """
+        feed_dict = {self.__z: latent_inputs}
         result = sess.run(self.__G_sample, feed_dict=feed_dict)
         return result
 
