@@ -31,7 +31,7 @@ tf.app.flags.DEFINE_string('data_path', '../../data/F2.npy',
 tf.app.flags.DEFINE_string('restore_path', None,
                            "path of saving model eg: checkpoints/model.ckpt-5")
 # input parameters
-tf.app.flags.DEFINE_integer('seq_length', 5 - 1,
+tf.app.flags.DEFINE_integer('seq_length', 100,
                             "the maximum length of one training data")
 tf.app.flags.DEFINE_integer('num_features', 23,
                             "3 (ball x y z) + 10 (players) * 2 (x and y) + 70 (player positions as 10 7-dims-one-hot)")
@@ -42,11 +42,11 @@ tf.app.flags.DEFINE_integer('total_epoches', 1500,
                             "num of ephoches")
 tf.app.flags.DEFINE_integer('num_train_D', 5,
                             "num of times of training D before train G")
-tf.app.flags.DEFINE_integer('num_pretrain_D', 10,
+tf.app.flags.DEFINE_integer('num_pretrain_D', 5,
                             "num of ephoch to train D before train G")
 tf.app.flags.DEFINE_integer('freq_train_D', 51,
                             "freqence of num ephoch to train D more")
-tf.app.flags.DEFINE_integer('batch_size', 256,
+tf.app.flags.DEFINE_integer('batch_size', 64,
                             "batch size")
 tf.app.flags.DEFINE_float('learning_rate', 1e-4,
                           "learning rate")
@@ -59,9 +59,9 @@ tf.app.flags.DEFINE_float('penalty_lambda', 10.0,
 # logging
 tf.app.flags.DEFINE_integer('save_model_freq', 50,
                             "num of epoches to save model")
-tf.app.flags.DEFINE_integer('save_result_freq', 25,
+tf.app.flags.DEFINE_integer('save_result_freq', 10,
                             "num of epoches to save gif")
-tf.app.flags.DEFINE_integer('log_freq', 200,
+tf.app.flags.DEFINE_integer('log_freq', 50,
                             "num of steps to log")
 tf.app.flags.DEFINE_bool('if_log_histogram', False,
                          "whether to log histogram or not")
@@ -151,6 +151,7 @@ def training(real_data, normer, config, graph):
                   (FLAGS.restore_path))
 
         D_loss_mean = 0.0
+        D_valid_loss_mean = 0.0
         G_loss_mean = 0.0
         log_counter = 0
         # to evaluate time cost
@@ -186,14 +187,15 @@ def training(real_data, normer, config, graph):
                     batch_id += 1
                     log_counter += 1
 
-                    # log validation loss
-                    data_idx = global_steps * \
-                        FLAGS.batch_size % (
-                            valid_data.shape[0] - FLAGS.batch_size)
-                    valid_real_samples = valid_data[data_idx:data_idx +
-                                                    FLAGS.batch_size]
-                    D_valid_loss_mean = model.D_log_valid_loss(
-                        sess, fake_samples, valid_real_samples)
+                    # # log validation loss
+                    # data_idx = global_steps * \
+                    #     FLAGS.batch_size % (
+                    #         valid_data.shape[0] - FLAGS.batch_size)
+                    # valid_real_samples = valid_data[data_idx:data_idx +
+                    #                                 FLAGS.batch_size]
+                    # valid_real_samples = normer.format_discrete_map(valid_real_samples)
+                    # D_valid_loss_mean = C.D_log_valid_loss(
+                    #     sess, fake_samples, valid_real_samples)
 
                 # train G
                 G_loss_mean, global_steps = G.step(sess, z_samples())
@@ -230,7 +232,7 @@ def training(real_data, normer, config, graph):
 def main(_):
     with tf.get_default_graph().as_default() as graph:
         # load data and remove useless z dimension of players in data
-        real_data = np.load(FLAGS.data_path)
+        real_data = np.load(FLAGS.data_path)[:, :FLAGS.seq_length, :]
         print('real_data.shape', real_data.shape)
 
         # TODO normalization

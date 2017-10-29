@@ -71,11 +71,11 @@ class C_MODEL(object):
     def __build_wgan(self):
         with tf.name_scope('WGAN'):
             D_real = self.inference(self.__X, seq_len=None)
-            self.__D_fake = self.inference(
+            __D_fake = self.inference(
                 self.__G_samples, seq_len=None, reuse=True)
             # loss function
             self.__D_loss, F_real, F_fake, grad_pen = self.__D_loss_fn(
-                self.__X, self.__G_samples, self.__D_fake, D_real, self.penalty_lambda)
+                self.__X, self.__G_samples, __D_fake, D_real, self.penalty_lambda)
             theta_D = self.__get_var_list()
             with tf.name_scope('D_optimizer') as scope:
                 D_optimizer = tf.train.AdamOptimizer(
@@ -163,9 +163,9 @@ class C_MODEL(object):
                 with tf.variable_scope('conv') as scope:
                     if time_step > 0:
                         tf.get_variable_scope().reuse_variables()
-                    filters_list = [32, 64, 128, 256]
+                    filters_list = [32, 64, 128]
                     next_input = inputs[time_step]
-                    for i in range(4):
+                    for i in range(len(filters_list)):
                         with tf.variable_scope('conv' + str(i)) as scope:
                             conv = layers.conv2d(
                                 inputs=next_input,
@@ -238,7 +238,9 @@ class C_MODEL(object):
             __X_inter = epsilon * __X + (1.0 - epsilon) * __G_sample
             grad = tf.gradients(
                 self.inference(__X_inter, seq_len=None, reuse=True), [__X_inter])[0]
-            sum_ = tf.reduce_sum(tf.square(grad), axis=[1, 2])
+            print(grad)
+            sum_ = tf.reduce_sum(tf.square(grad), axis=[1, 2, 3, 4])
+            print(sum_)
             grad_norm = tf.sqrt(sum_)
             grad_pen = penalty_lambda * tf.reduce_mean(
                 tf.square(grad_norm - 1.0))
@@ -276,10 +278,3 @@ class C_MODEL(object):
             self.D_valid_summary_writer.add_summary(
                 summary, global_step=global_steps)
         return loss
-
-    def evaluate(self, sess, G_samples):
-        """ evaluate G_sample by Critic
-        """
-        # feed_dict = {self.__G_samples: G_samples}
-        # rewards = sess.run(self.__D_fake, feed_dict=feed_dict)
-        return self.__D_fake

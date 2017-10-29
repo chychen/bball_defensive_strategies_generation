@@ -158,9 +158,9 @@ class G_MODEL(object):
                 with tf.name_scope('deconv'):
                     linear_reshape = tf.reshape(
                         stack_lstm, shape=[self.batch_size, 6, 3, 512])
-                    filters_list = [256, 128, 64, 11]
+                    filters_list = [128, 64, 11]
                     next_input = linear_reshape
-                    for i in range(4):
+                    for i in range(len(filters_list)):
                         with tf.variable_scope('deconv' + str(i)) as scope:
                             deconv = layers.conv2d_transpose(
                                 inputs=next_input,

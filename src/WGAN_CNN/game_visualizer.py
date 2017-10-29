@@ -75,7 +75,7 @@ def plot_data(data, length, file_path=None, if_save=False, fps=4, dpi=48):
     Return
     ------
     """
-    court = plt.imread("../data/court.png")  # 500*939
+    court = plt.imread("../../data/court.png")  # 500*939
     # get ten 7-dims-one-hot of player positions
     # onehot_vec = data[0, 0, 23:].reshape([10, 7])
     # players_list = np.argmax(onehot_vec, axis=-1) + 1  # 0 <-> Ball

@@ -14,8 +14,8 @@ class Norm(object):
     * discrete player position onto sparse map (shape=[100,50])
     """
     __instance = None
-    COLS = 96
-    ROWS = 48
+    COLS = 48
+    ROWS = 24
     PLAYERS = 11
     BASKET_LEFT = [4, 25]
     BASKET_RIGHT = [90, 25]
