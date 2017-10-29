@@ -22,18 +22,18 @@ from utils import Norm
 FLAGS = tf.app.flags.FLAGS
 
 # path parameters
-tf.app.flags.DEFINE_string('log_dir', 'v20/log/',
+tf.app.flags.DEFINE_string('log_dir', 'v21/log/',
                            "summary directory")
-tf.app.flags.DEFINE_string('checkpoints_dir', 'v20/checkpoints/',
+tf.app.flags.DEFINE_string('checkpoints_dir', 'v21/checkpoints/',
                            "checkpoints dir")
-tf.app.flags.DEFINE_string('sample_dir', 'v20/sample/',
+tf.app.flags.DEFINE_string('sample_dir', 'v21/sample/',
                            "directory to save generative result")
-tf.app.flags.DEFINE_string('data_path', '../data/F2.npy',
+tf.app.flags.DEFINE_string('data_path', '../../data/F2.npy',
                            "summary directory")
 tf.app.flags.DEFINE_string('restore_path', None,
                            "path of saving model eg: checkpoints/model.ckpt-5")
 # input parameters
-tf.app.flags.DEFINE_integer('seq_length', 100 - 1,
+tf.app.flags.DEFINE_integer('seq_length', 3 - 1,
                             "the maximum length of one training data")
 tf.app.flags.DEFINE_integer('num_features', 23 + 70,
                             "3 (ball x y z) + 10 (players) * 2 (x and y) + 70 (player positions as 10 7-dims-one-hot)")
@@ -131,8 +131,10 @@ def z_samples(real_data):
     # # TODO sample z from normal-distribution than
     # return np.random.uniform(
     #     -1., 1., size=[FLAGS.batch_size, FLAGS.seq_length, FLAGS.latent_dims])
-    shuffled_indexes = np.random.permutation(real_data.shape[0])[:FLAGS.batch_size]
-    return real_data[shuffled_indexes, 0, :]
+    # shuffled_indexes = np.random.permutation(real_data.shape[0])[:FLAGS.batch_size]
+    # return real_data[shuffled_indexes, 0, :]
+    return np.random.uniform(
+        -1., 1., size=[FLAGS.batch_size, FLAGS.num_features])
 
 
 def training(sess, model, real_data, num_batches, saver, normer, is_pretrain=False):
@@ -278,7 +280,7 @@ def training(sess, model, real_data, num_batches, saver, normer, is_pretrain=Fal
             # plot generated sample
             if (epoch_id % FLAGS.save_result_freq) == 0 or epoch_id == FLAGS.total_epoches - 1:
                 samples = model.generate(
-                    sess, sampled_noise)
+                    sess, z_samples(real_data))
                 # scale recovering
                 samples = normer.recover_data(samples)
                 # plot

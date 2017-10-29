@@ -213,8 +213,9 @@ class RNN_WGAN(object):
     def __lstm_cell(self):
         return rnn.LSTMCell(self.hidden_size, use_peepholes=True, initializer=None,
                             forget_bias=1.0, state_is_tuple=True,
-                            # activation=self.__leaky_relu, cell_clip=2,
-                            activation=tf.nn.tanh, reuse=tf.get_variable_scope().reuse)
+                            activation=self.__leaky_relu, cell_clip=100,
+                            # activation=tf.nn.tanh, 
+                            reuse=tf.get_variable_scope().reuse)
 
     def __G(self, inputs, seq_len=None, reuse=False, if_pretrain=False):
         """ TODO
@@ -250,11 +251,11 @@ class RNN_WGAN(object):
                     input_ = inputs[:, time_step, :]
                 else:
                     input_ = generated_point
-                # generated_point = generated_point
-                # input_ = 
                 # concat_values = [input_]
                 # concat_values.append(generated_point)
-                # input_ = tf.concat(values=concat_values, axis=1)
+                # concat_input = tf.concat(values=concat_values, axis=1)
+                # generated_point = generated_point
+                # input_ = 
                 with tf.variable_scope('fully_connect_concat') as scope:
                     lstm_input = layers.fully_connected(
                         inputs=input_,
@@ -271,27 +272,27 @@ class RNN_WGAN(object):
                         inputs=lstm_input, state=state, scope=scope)
                     self.__summarize('cell_out', cell_out, collections=[
                         'G'], postfix='Activation')
-                with tf.variable_scope('position_fc0') as scope:
-                    position_fc0 = layers.fully_connected(
-                        inputs=cell_out,
-                        num_outputs=23*4,
-                        activation_fn=self.__leaky_relu,
-                        weights_initializer=layers.xavier_initializer(
-                            uniform=False),
-                        biases_initializer=tf.zeros_initializer(),
-                        scope=scope)
-                with tf.variable_scope('position_fc1') as scope:
-                    position_fc1 = layers.fully_connected(
-                        inputs=position_fc0,
-                        num_outputs=23*2,
-                        activation_fn=self.__leaky_relu,
-                        weights_initializer=layers.xavier_initializer(
-                            uniform=False),
-                        biases_initializer=tf.zeros_initializer(),
-                        scope=scope)
+                # with tf.variable_scope('position_fc0') as scope:
+                #     position_fc0 = layers.fully_connected(
+                #         inputs=cell_out,
+                #         num_outputs=23*4,
+                #         activation_fn=self.__leaky_relu,
+                #         weights_initializer=layers.xavier_initializer(
+                #             uniform=False),
+                #         biases_initializer=tf.zeros_initializer(),
+                #         scope=scope)
+                # with tf.variable_scope('position_fc1') as scope:
+                #     position_fc1 = layers.fully_connected(
+                #         inputs=position_fc0,
+                #         num_outputs=23*2,
+                #         activation_fn=self.__leaky_relu,
+                #         weights_initializer=layers.xavier_initializer(
+                #             uniform=False),
+                #         biases_initializer=tf.zeros_initializer(),
+                #         scope=scope)
                 with tf.variable_scope('position_fc') as scope:
                     position_fc = layers.fully_connected(
-                        inputs=position_fc1,
+                        inputs=cell_out,
                         num_outputs=23,
                         activation_fn=self.__leaky_relu,
                         weights_initializer=layers.xavier_initializer(

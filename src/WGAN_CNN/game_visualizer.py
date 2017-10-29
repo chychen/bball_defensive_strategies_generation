@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from matplotlib.patches import Circle, Rectangle, Arc
 
-from utils import Norm
+from utils_cnn import Norm
 
 # * B <-> 0
 # * F <-> 1
@@ -77,14 +77,16 @@ def plot_data(data, length, file_path=None, if_save=False, fps=4, dpi=48):
     """
     court = plt.imread("../data/court.png")  # 500*939
     # get ten 7-dims-one-hot of player positions
-    onehot_vec = data[0, 0, 23:].reshape([10, 7])
-    players_list = np.argmax(onehot_vec, axis=-1) + 1  # 0 <-> Ball
-    ball_value = np.zeros(shape=[1])
-    name_scalar_list = np.concatenate([players_list, ball_value], axis=-1)
-    print(name_scalar_list.shape)
-    name_list = []
-    for v in name_scalar_list:
-        name_list.append(PP_LIST[int(v)])
+    # onehot_vec = data[0, 0, 23:].reshape([10, 7])
+    # players_list = np.argmax(onehot_vec, axis=-1) + 1  # 0 <-> Ball
+    # ball_value = np.zeros(shape=[1])
+    # name_scalar_list = np.concatenate([players_list, ball_value], axis=-1)
+    # print(name_scalar_list.shape)
+    # name_list = []
+    # for v in name_scalar_list:
+    #     name_list.append(PP_LIST[int(v)])
+    name_list = ['A1', 'A2', 'A3', 'A4', 'A5',
+                 'B1', 'B2', 'B3', 'B4', 'B5', 'O']
 
     # team A -> read circle, team B -> blue circle, ball -> small green circle
     player_circles = []
