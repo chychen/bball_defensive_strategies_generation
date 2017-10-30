@@ -63,16 +63,20 @@ class Norm(object):
         ball_on_map = map_[:, :, :, :, 0]
         ball_position = np.argmax(ball_on_map.reshape(
             [shape_[0], shape_[1], -1]), axis=-1)
-        result.append(ball_position // Norm.ROWS)
-        result.append(ball_position % Norm.ROWS)
+        result.append(ball_position // Norm.ROWS *
+                      self.range_x / Norm.COLS + self.min_x)
+        result.append(ball_position % Norm.ROWS *
+                      self.range_y / Norm.ROWS + self.min_y)
         result.append(ball_z)
         # players
         for player in range(1, Norm.PLAYERS):
             player_on_map = map_[:, :, :, :, player]
             player_position = np.argmax(player_on_map.reshape(
                 [shape_[0], shape_[1], -1]), axis=-1)
-            result.append(player_position // Norm.ROWS)
-            result.append(player_position % Norm.ROWS)
+            result.append(player_position // Norm.ROWS *
+                          self.range_x / Norm.COLS + self.min_x)
+            result.append(player_position % Norm.ROWS *
+                          self.range_y / Norm.ROWS + self.min_y)
         result = np.stack(result, axis=-1)
         print(result.shape)
         return result

@@ -53,9 +53,7 @@ class G_MODEL(object):
         # IO
         self.critic = critic_inference
         self.__z = tf.placeholder(dtype=tf.float32, shape=[
-            self.batch_size, self.num_features], name='latent_input')
-        self.__X = tf.placeholder(dtype=tf.float32, shape=[
-            self.batch_size, self.seq_length, self.num_features], name='real_data')
+            self.batch_size, self.latent_dims], name='latent_input')
         # adversarial learning : wgan
         self.__build_wgan()
 
@@ -122,7 +120,7 @@ class G_MODEL(object):
 
     def __lstm_cell(self):
         return rnn.LSTMCell(self.hidden_size, use_peepholes=True, initializer=None,
-                            forget_bias=1.0, state_is_tuple=True, num_proj=6 * 3 * 512,  # TODO !!!
+                            forget_bias=1.0, state_is_tuple=True,
                             activation=tf.nn.tanh, reuse=tf.get_variable_scope().reuse)
 
     def __G(self, inputs, seq_len=None, if_pretrain=False):
@@ -155,10 +153,22 @@ class G_MODEL(object):
                         inputs=inputs, state=state, scope=scope)
                     self.__summarize('stack_lstm', stack_lstm, collections=[
                         'G'], postfix='Activation')
+                with tf.variable_scope('linear') as scope:
+                    linear = layers.fully_connected(
+                        inputs=stack_lstm,
+                        num_outputs=6 * 3 * 256,
+                        activation_fn=None,
+                        weights_initializer=layers.xavier_initializer(
+                            uniform=False),
+                        biases_initializer=tf.zeros_initializer(),
+                        reuse=scope.reuse,
+                        scope=scope
+                    )
                 with tf.name_scope('deconv'):
                     linear_reshape = tf.reshape(
-                        stack_lstm, shape=[self.batch_size, 6, 3, 512])
+                        linear, shape=[self.batch_size, 6, 3, 256])
                     filters_list = [128, 64, 11]
+                    activation_list = [tf.nn.relu, tf.nn.relu, None]
                     next_input = linear_reshape
                     for i in range(len(filters_list)):
                         with tf.variable_scope('deconv' + str(i)) as scope:
@@ -168,7 +178,7 @@ class G_MODEL(object):
                                 kernel_size=[5, 5],
                                 stride=2,
                                 padding='SAME',
-                                activation_fn=tf.nn.relu,
+                                activation_fn=activation_list[i],
                                 weights_initializer=layers.xavier_initializer(
                                     uniform=False),
                                 biases_initializer=tf.zeros_initializer(),

@@ -120,7 +120,7 @@ class TrainingConfig(object):
 def z_samples():
     # # TODO sample z from normal-distribution
     return np.random.uniform(
-        0.0, 1.0, size=[FLAGS.batch_size, FLAGS.num_features])
+        0.0, 1.0, size=[FLAGS.batch_size, FLAGS.latent_dims])
 
 
 def training(real_data, normer, config, graph):
