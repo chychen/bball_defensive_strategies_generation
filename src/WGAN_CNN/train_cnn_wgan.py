@@ -31,7 +31,7 @@ tf.app.flags.DEFINE_string('data_path', '../../data/F2.npy',
 tf.app.flags.DEFINE_string('restore_path', None,
                            "path of saving model eg: checkpoints/model.ckpt-5")
 # input parameters
-tf.app.flags.DEFINE_integer('seq_length', 100,
+tf.app.flags.DEFINE_integer('seq_length', 1,
                             "the maximum length of one training data")
 tf.app.flags.DEFINE_integer('num_features', 23,
                             "3 (ball x y z) + 10 (players) * 2 (x and y) + 70 (player positions as 10 7-dims-one-hot)")
@@ -120,7 +120,7 @@ class TrainingConfig(object):
 def z_samples():
     # # TODO sample z from normal-distribution
     return np.random.uniform(
-        0.0, 1.0, size=[FLAGS.batch_size, FLAGS.latent_dims])
+        0.0, 1.0, size=[FLAGS.batch_size, FLAGS.seq_length, FLAGS.latent_dims])
 
 
 def training(real_data, normer, config, graph):

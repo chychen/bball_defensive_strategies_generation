@@ -53,7 +53,7 @@ class G_MODEL(object):
         # IO
         self.critic = critic_inference
         self.__z = tf.placeholder(dtype=tf.float32, shape=[
-            self.batch_size, self.latent_dims], name='latent_input')
+            self.batch_size, self.seq_length, self.latent_dims], name='latent_input')
         # adversarial learning : wgan
         self.__build_wgan()
 
@@ -150,13 +150,13 @@ class G_MODEL(object):
                     tf.get_variable_scope().reuse_variables()
                 with tf.variable_scope('stack_lstm') as scope:
                     stack_lstm, _ = cell(
-                        inputs=inputs, state=state, scope=scope)
+                        inputs=inputs[:, time_step, :], state=state, scope=scope)
                     self.__summarize('stack_lstm', stack_lstm, collections=[
                         'G'], postfix='Activation')
                 with tf.variable_scope('linear') as scope:
                     linear = layers.fully_connected(
                         inputs=stack_lstm,
-                        num_outputs=6 * 3 * 256,
+                        num_outputs=4 * 2 * 512,
                         activation_fn=None,
                         weights_initializer=layers.xavier_initializer(
                             uniform=False),
@@ -166,9 +166,10 @@ class G_MODEL(object):
                     )
                 with tf.name_scope('deconv'):
                     linear_reshape = tf.reshape(
-                        linear, shape=[self.batch_size, 6, 3, 256])
-                    filters_list = [128, 64, 11]
-                    activation_list = [tf.nn.relu, tf.nn.relu, None]
+                        linear, shape=[self.batch_size, 4, 2, 512])
+                    filters_list = [256, 128, 64, 11]
+                    activation_list = [tf.nn.relu,
+                                       tf.nn.relu, tf.nn.relu, None]
                     next_input = linear_reshape
                     for i in range(len(filters_list)):
                         with tf.variable_scope('deconv' + str(i)) as scope:

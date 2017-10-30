@@ -163,7 +163,7 @@ class C_MODEL(object):
                 with tf.variable_scope('conv') as scope:
                     if time_step > 0:
                         tf.get_variable_scope().reuse_variables()
-                    filters_list = [32, 64, 128]
+                    filters_list = [32, 64, 128, 256]
                     next_input = inputs[time_step]
                     for i in range(len(filters_list)):
                         with tf.variable_scope('conv' + str(i)) as scope:

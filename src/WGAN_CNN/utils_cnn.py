@@ -14,8 +14,8 @@ class Norm(object):
     * discrete player position onto sparse map (shape=[100,50])
     """
     __instance = None
-    COLS = 48
-    ROWS = 24
+    COLS = 64
+    ROWS = 32
     PLAYERS = 11
     BASKET_LEFT = [4, 25]
     BASKET_RIGHT = [90, 25]
@@ -81,7 +81,7 @@ class Norm(object):
         print(result.shape)
         return result
 
-    def format_discrete_map(self, batch_data):
+    def format_discrete_map(self, batch_data, apply_gaussian=True):
         """ TODO z and player position
         Args
         ----
@@ -104,7 +104,28 @@ class Norm(object):
         coor_y = coor_y.reshape([-1]).astype(np.int32)
         map_ = map_.reshape([-1, Norm.COLS, Norm.ROWS])
         idx_ = [x for x in range(map_.shape[0])]
-        map_[idx_, coor_x, coor_y] = 1.0
+        if apply_gaussian:
+            map_[idx_, coor_x, coor_y] = 0.3989  # mean
+            # 1stddev
+            map_[idx_, np.maximum(coor_x - 1, 0), coor_y] = 0.2419
+            map_[idx_, np.minimum(coor_x + 1, Norm.COLS - 1), coor_y] = 0.2419
+            map_[idx_, coor_x, np.maximum(coor_y - 1, 0)] = 0.2419
+            map_[idx_, coor_x, np.minimum(coor_y + 1, Norm.ROWS - 1)] = 0.2419
+            # 2stddev
+            map_[idx_, np.maximum(coor_x - 2, 0), coor_y] = 0.0539
+            map_[idx_, np.maximum(coor_x - 1, 0),
+                 np.maximum(coor_y - 1, 0)] = 0.0539
+            map_[idx_, coor_x, np.maximum(coor_y - 2, 0)] = 0.0539
+            map_[idx_, np.minimum(coor_x + 1, Norm.COLS - 1),
+                 np.maximum(coor_y - 1, 0)] = 0.0539
+            map_[idx_, np.minimum(coor_x + 2, Norm.COLS - 1), coor_y] = 0.0539
+            map_[idx_, np.minimum(coor_x + 1, Norm.COLS - 1),
+                 np.minimum(coor_y + 1, Norm.ROWS - 1)] = 0.0539
+            map_[idx_, coor_x, np.minimum(coor_y + 2, Norm.ROWS - 1)] = 0.0539
+            map_[idx_, np.maximum(coor_x - 1, 0),
+                 np.minimum(coor_y + 1, Norm.ROWS - 1)] = 0.0539
+        else:
+            map_[idx_, coor_x, coor_y] = 1.0
         map_ = map_.reshape([shape_[0], shape_[1], Norm.PLAYERS,
                              Norm.COLS, Norm.ROWS])
         return map_
@@ -118,11 +139,13 @@ def testing():
     normer = Norm(dummy)
 
     print('#2')
-    result = normer.format_discrete_map(dummy)
+    result = normer.format_discrete_map(dummy, apply_gaussian=True)
     print(result.shape)
     print(result.dtype)
+    for i in range(normer.COLS):
+        print(result[0, 0, 0, i, 23:32])
 
-    dummy = np.ones(shape=[32, 100, 100, 50, 11])
+    dummy = np.ones(shape=[32, 100, 64, 32, 11])
     print('#3')
     result = normer.map_2_position(dummy)
 

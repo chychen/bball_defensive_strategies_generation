@@ -135,8 +135,11 @@ def test():
     """
     train_data = np.load(opt.data_path)
     normer = Norm(train_data)
-    train_data = normer.get_normed_data()
-    train_data = normer.recover_data(train_data)
+    train_data = normer.format_discrete_map(train_data[:32])
+    print(train_data.shape)
+    train_data = np.transpose(train_data, axes=[0, 1, 3, 4, 2])
+    print(train_data.shape)
+    train_data = normer.map_2_position(train_data)
 
     for i in range(opt.amount):
         plot_data(train_data[i:i + 1], length=100,
@@ -152,14 +155,14 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='NBA Games visulization')
     parser.add_argument('--save', type=bool, default=True,
                         help='bool, if save as gif file')
-    parser.add_argument('--amount', type=int, default=100,
+    parser.add_argument('--amount', type=int, default=10,
                         help='how many event do you want to plot')
     parser.add_argument('--seq_length', type=int, default=100,
                         help='how long for each event')
-    parser.add_argument('--save_path', type=str, default='../data/',
+    parser.add_argument('--save_path', type=str, default='../../data/',
                         help='string, path to save event animation')
     parser.add_argument('--data_path', type=str,
-                        default='../data/F2.npy', help='string, path of target data')
+                        default='../../data/F2.npy', help='string, path of target data')
 
     opt = parser.parse_args()
     test()
