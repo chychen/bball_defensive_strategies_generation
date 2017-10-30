@@ -105,12 +105,6 @@ class Norm(object):
         map_ = map_.reshape([-1, Norm.COLS, Norm.ROWS])
         idx_ = [x for x in range(map_.shape[0])]
         if apply_gaussian:
-            map_[idx_, coor_x, coor_y] = 0.3989  # mean
-            # 1stddev
-            map_[idx_, np.maximum(coor_x - 1, 0), coor_y] = 0.2419
-            map_[idx_, np.minimum(coor_x + 1, Norm.COLS - 1), coor_y] = 0.2419
-            map_[idx_, coor_x, np.maximum(coor_y - 1, 0)] = 0.2419
-            map_[idx_, coor_x, np.minimum(coor_y + 1, Norm.ROWS - 1)] = 0.2419
             # 2stddev
             map_[idx_, np.maximum(coor_x - 2, 0), coor_y] = 0.0539
             map_[idx_, np.maximum(coor_x - 1, 0),
@@ -124,6 +118,13 @@ class Norm(object):
             map_[idx_, coor_x, np.minimum(coor_y + 2, Norm.ROWS - 1)] = 0.0539
             map_[idx_, np.maximum(coor_x - 1, 0),
                  np.minimum(coor_y + 1, Norm.ROWS - 1)] = 0.0539
+            # 1stddev
+            map_[idx_, np.maximum(coor_x - 1, 0), coor_y] = 0.2419
+            map_[idx_, np.minimum(coor_x + 1, Norm.COLS - 1), coor_y] = 0.2419
+            map_[idx_, coor_x, np.maximum(coor_y - 1, 0)] = 0.2419
+            map_[idx_, coor_x, np.minimum(coor_y + 1, Norm.ROWS - 1)] = 0.2419
+            # mean
+            map_[idx_, coor_x, coor_y] = 0.3989
         else:
             map_[idx_, coor_x, coor_y] = 1.0
         map_ = map_.reshape([shape_[0], shape_[1], Norm.PLAYERS,
