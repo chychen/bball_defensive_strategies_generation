@@ -17,7 +17,6 @@ import game_visualizer
 from utils import Norm
 from Generator import G_MODEL
 from Critic import C_MODEL
-
 FLAGS = tf.app.flags.FLAGS
 
 # path parameters
@@ -35,6 +34,8 @@ tf.app.flags.DEFINE_integer('num_features', 23,
 tf.app.flags.DEFINE_integer('latent_dims', 23,
                             "dimensions of latant variable")
 # training parameters
+tf.app.flags.DEFINE_string('gpus', '0',
+                           "define visible gpus")
 tf.app.flags.DEFINE_integer('total_epoches', 1500,
                             "num of ephoches")
 tf.app.flags.DEFINE_integer('num_train_D', 5,
@@ -63,10 +64,13 @@ tf.app.flags.DEFINE_integer('log_freq', 200,
 tf.app.flags.DEFINE_bool('if_log_histogram', False,
                          "whether to log histogram or not")
 
-
+# PATH
 LOG_PATH = os.path.join(FLAGS.folder_path, 'log')
 CHECKPOINTS_PATH = os.path.join(FLAGS.folder_path, 'checkpoints')
 SAMPLE_PATH = os.path.join(FLAGS.folder_path, 'sample')
+# VISIBLE GPUS
+os.environ['CUDA_VISIBLE_DEVICES'] = FLAGS.gpus
+
 class TrainingConfig(object):
     """
     Training config
