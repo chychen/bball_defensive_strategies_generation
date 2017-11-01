@@ -13,7 +13,7 @@ import shutil
 import numpy as np
 import tensorflow as tf
 import game_visualizer
-from utils_cnn import Norm
+from utils import Norm
 from Generator import G_MODEL
 from Critic import C_MODEL
 
@@ -31,7 +31,7 @@ tf.app.flags.DEFINE_string('data_path', '../../data/F2.npy',
 tf.app.flags.DEFINE_string('restore_path', None,
                            "path of saving model eg: checkpoints/model.ckpt-5")
 # input parameters
-tf.app.flags.DEFINE_integer('seq_length', 1,
+tf.app.flags.DEFINE_integer('seq_length', 100,
                             "the maximum length of one training data")
 tf.app.flags.DEFINE_integer('num_features', 23,
                             "3 (ball x y z) + 10 (players) * 2 (x and y) + 70 (player positions as 10 7-dims-one-hot)")
@@ -118,9 +118,8 @@ class TrainingConfig(object):
 
 
 def z_samples():
-    # # TODO sample z from normal-distribution
-    return np.random.uniform(
-        0.0, 1.0, size=[FLAGS.batch_size, FLAGS.seq_length, FLAGS.latent_dims])
+    return np.random.normal(
+        0., 1., size=[FLAGS.batch_size, FLAGS.seq_length, FLAGS.num_features])
 
 
 def training(real_data, normer, config, graph):
@@ -180,7 +179,6 @@ def training(real_data, normer, config, graph):
                                              FLAGS.batch_size]
                     # samples
                     fake_samples = G.generate(sess, z_samples())
-                    real_samples = normer.format_discrete_map(real_samples)
                     # train Critic
                     D_loss_mean, global_steps = C.step(
                         sess, fake_samples, real_samples)
@@ -193,7 +191,6 @@ def training(real_data, normer, config, graph):
                     #         valid_data.shape[0] - FLAGS.batch_size)
                     # valid_real_samples = valid_data[data_idx:data_idx +
                     #                                 FLAGS.batch_size]
-                    # valid_real_samples = normer.format_discrete_map(valid_real_samples)
                     # D_valid_loss_mean = C.D_log_valid_loss(
                     #     sess, fake_samples, valid_real_samples)
 
@@ -223,7 +220,7 @@ def training(real_data, normer, config, graph):
             if (epoch_id % FLAGS.save_result_freq) == 0 or epoch_id == FLAGS.total_epoches - 1:
                 samples = G.generate(sess, z_samples())
                 # scale recovering TODO
-                samples = normer.map_2_position(samples)
+                samples = normer.recover_data(samples)
                 # plot
                 game_visualizer.plot_data(
                     samples[0:], FLAGS.seq_length, file_path=FLAGS.sample_dir + str(global_steps) + '.gif', if_save=True)
@@ -231,15 +228,12 @@ def training(real_data, normer, config, graph):
 
 def main(_):
     with tf.get_default_graph().as_default() as graph:
-        # load data and remove useless z dimension of players in data
-        real_data = np.load(FLAGS.data_path)[:, :FLAGS.seq_length, :]
+        real_data = np.load(FLAGS.data_path)[:, :FLAGS.seq_length, :, :]
         print('real_data.shape', real_data.shape)
-
-        # TODO normalization
+        # normalize
         normer = Norm(real_data)
-        # real_data = normer.get_normed_data()[:, :FLAGS.seq_length, :]
+        real_data = normer.get_normed_data()
         print(real_data.shape)
-
         # config setting
         config = TrainingConfig()
         config.show()
