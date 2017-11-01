@@ -10,6 +10,7 @@ from __future__ import print_function
 import os
 import time
 import shutil
+import json
 import numpy as np
 import tensorflow as tf
 import game_visualizer
@@ -20,12 +21,8 @@ from Critic import C_MODEL
 FLAGS = tf.app.flags.FLAGS
 
 # path parameters
-tf.app.flags.DEFINE_string('log_dir', 'v21/log/',
+tf.app.flags.DEFINE_string('folder_path', 'v25',
                            "summary directory")
-tf.app.flags.DEFINE_string('checkpoints_dir', 'v21/checkpoints/',
-                           "checkpoints dir")
-tf.app.flags.DEFINE_string('sample_dir', 'v21/sample/',
-                           "directory to save generative result")
 tf.app.flags.DEFINE_string('data_path', '../../data/F2.npy',
                            "summary directory")
 tf.app.flags.DEFINE_string('restore_path', None,
@@ -46,38 +43,42 @@ tf.app.flags.DEFINE_integer('num_pretrain_D', 5,
                             "num of ephoch to train D before train G")
 tf.app.flags.DEFINE_integer('freq_train_D', 51,
                             "freqence of num ephoch to train D more")
-tf.app.flags.DEFINE_integer('batch_size', 64,
+tf.app.flags.DEFINE_integer('batch_size', 128,
                             "batch size")
-tf.app.flags.DEFINE_float('learning_rate', 1e-4,
+tf.app.flags.DEFINE_float('learning_rate', 1e-5,
                           "learning rate")
-tf.app.flags.DEFINE_integer('hidden_size', 230,
+tf.app.flags.DEFINE_integer('hidden_size', 512,
                             "hidden size of LSTM")
 tf.app.flags.DEFINE_integer('rnn_layers', 2,
                             "num of layers for rnn")
 tf.app.flags.DEFINE_float('penalty_lambda', 10.0,
                           "regularization parameter of wGAN loss function")
 # logging
-tf.app.flags.DEFINE_integer('save_model_freq', 50,
+tf.app.flags.DEFINE_integer('save_model_freq', 60,
                             "num of epoches to save model")
-tf.app.flags.DEFINE_integer('save_result_freq', 10,
+tf.app.flags.DEFINE_integer('save_result_freq', 30,
                             "num of epoches to save gif")
-tf.app.flags.DEFINE_integer('log_freq', 50,
+tf.app.flags.DEFINE_integer('log_freq', 200,
                             "num of steps to log")
 tf.app.flags.DEFINE_bool('if_log_histogram', False,
                          "whether to log histogram or not")
 
 
+LOG_PATH = os.path.join(FLAGS.folder_path, 'log')
+CHECKPOINTS_PATH = os.path.join(FLAGS.folder_path, 'checkpoints')
+SAMPLE_PATH = os.path.join(FLAGS.folder_path, 'sample')
 class TrainingConfig(object):
     """
     Training config
     """
 
     def __init__(self):
+        self.folder_path = FLAGS.folder_path
         self.total_epoches = FLAGS.total_epoches
         self.batch_size = FLAGS.batch_size
-        self.log_dir = FLAGS.log_dir
-        self.checkpoints_dir = FLAGS.checkpoints_dir
-        self.sample_dir = FLAGS.sample_dir
+        self.log_dir = LOG_PATH
+        self.checkpoints_dir = CHECKPOINTS_PATH
+        self.sample_dir = SAMPLE_PATH
         self.data_path = FLAGS.data_path
         self.learning_rate = FLAGS.learning_rate
         self.hidden_size = FLAGS.hidden_size
@@ -93,11 +94,13 @@ class TrainingConfig(object):
         self.num_pretrain_D = FLAGS.num_pretrain_D
         self.freq_train_D = FLAGS.freq_train_D
         self.if_log_histogram = FLAGS.if_log_histogram
+        with open(os.path.join(FLAGS.folder_path, 'hyper_parameters.json'), 'w') as outfile:
+            json.dump(FLAGS.__dict__['__flags'], outfile)
 
     def show(self):
         print("total_epoches:", self.total_epoches)
         print("batch_size:", self.batch_size)
-        print("log_dir:", self.log_dir)
+        print("log_dir:", LOG_PATH)
         print("checkpoints_dir:", self.checkpoints_dir)
         print("sample_dir:", self.sample_dir)
         print("data_path:", self.data_path)
@@ -140,8 +143,9 @@ def training(real_data, normer, config, graph):
     init = tf.global_variables_initializer()
     # saver for later restore
     saver = tf.train.Saver()
-
-    with tf.Session() as sess:
+    config = tf.ConfigProto()
+    config.gpu_options.allow_growth = True
+    with tf.Session(config=config) as sess:
         sess.run(init)
         # restore model if exist
         if FLAGS.restore_path is not None:
@@ -185,14 +189,14 @@ def training(real_data, normer, config, graph):
                     batch_id += 1
                     log_counter += 1
 
-                    # # log validation loss
-                    # data_idx = global_steps * \
-                    #     FLAGS.batch_size % (
-                    #         valid_data.shape[0] - FLAGS.batch_size)
-                    # valid_real_samples = valid_data[data_idx:data_idx +
-                    #                                 FLAGS.batch_size]
-                    # D_valid_loss_mean = C.D_log_valid_loss(
-                    #     sess, fake_samples, valid_real_samples)
+                    # log validation loss
+                    data_idx = global_steps * \
+                        FLAGS.batch_size % (
+                            valid_data.shape[0] - FLAGS.batch_size)
+                    valid_real_samples = valid_data[data_idx:data_idx +
+                                                    FLAGS.batch_size]
+                    D_valid_loss_mean = C.log_valid_loss(
+                        sess, fake_samples, valid_real_samples)
 
                 # train G
                 G_loss_mean, global_steps = G.step(sess, z_samples())
@@ -213,17 +217,17 @@ def training(real_data, normer, config, graph):
             # save model
             if (epoch_id % FLAGS.save_model_freq) == 0 or epoch_id == FLAGS.total_epoches - 1:
                 save_path = saver.save(
-                    sess, FLAGS.checkpoints_dir + "model.ckpt",
+                    sess, CHECKPOINTS_PATH + "model.ckpt",
                     global_step=global_steps)
                 print("Model saved in file: %s" % save_path)
             # plot generated sample
             if (epoch_id % FLAGS.save_result_freq) == 0 or epoch_id == FLAGS.total_epoches - 1:
                 samples = G.generate(sess, z_samples())
-                # scale recovering TODO
+                # scale recovering
                 samples = normer.recover_data(samples)
                 # plot
                 game_visualizer.plot_data(
-                    samples[0:], FLAGS.seq_length, file_path=FLAGS.sample_dir + str(global_steps) + '.gif', if_save=True)
+                    samples[0:], FLAGS.seq_length, file_path=SAMPLE_PATH + str(global_steps) + '.gif', if_save=True)
 
 
 def main(_):
@@ -244,17 +248,14 @@ def main(_):
 if __name__ == '__main__':
     if FLAGS.restore_path is None:
         # when not restore, remove follows (old) for new training
-        if os.path.exists(FLAGS.log_dir):
-            shutil.rmtree(FLAGS.log_dir)
-            print('rm -rf "%s" complete!' % FLAGS.log_dir)
-        if os.path.exists(FLAGS.checkpoints_dir):
-            shutil.rmtree(FLAGS.checkpoints_dir)
-            print('rm -rf "%s" complete!' % FLAGS.checkpoints_dir)
-        if os.path.exists(FLAGS.sample_dir):
-            shutil.rmtree(FLAGS.sample_dir)
-            print('rm -rf "%s" complete!' % FLAGS.sample_dir)
-    if not os.path.exists(FLAGS.checkpoints_dir):
-        os.makedirs(FLAGS.checkpoints_dir)
-    if not os.path.exists(FLAGS.sample_dir):
-        os.makedirs(FLAGS.sample_dir)
+        if os.path.exists(FLAGS.folder_path):
+            shutil.rmtree(FLAGS.folder_path)
+            print('rm -rf "%s" complete!' % FLAGS.folder_path)
+    
+    if not os.path.exists(LOG_PATH):
+        os.makedirs(LOG_PATH)
+    if not os.path.exists(CHECKPOINTS_PATH):
+        os.makedirs(CHECKPOINTS_PATH)
+    if not os.path.exists(SAMPLE_PATH):
+        os.makedirs(SAMPLE_PATH)
     tf.app.run()

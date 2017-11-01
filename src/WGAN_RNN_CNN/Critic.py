@@ -50,7 +50,7 @@ class C_MODEL(object):
         self.if_log_histogram = config.if_log_histogram
         # steps
         self.__global_steps = tf.train.get_or_create_global_step(graph=graph)
-        self.__D_steps = 0
+        self.__steps = 0
         # data
         self.__G_samples = tf.placeholder(dtype=tf.float32, shape=[
             self.batch_size, self.seq_length, self.num_features], name='G_samples')
@@ -60,39 +60,39 @@ class C_MODEL(object):
         self.__build_wgan()
 
         # summary
-        self.__summary_D_op = tf.summary.merge(tf.get_collection('D'))
-        self.__summary_D_valid_op = tf.summary.merge(
-            tf.get_collection('D_valid'))
-        self.D_summary_writer = tf.summary.FileWriter(
-            self.log_dir + 'D')
-        self.D_valid_summary_writer = tf.summary.FileWriter(
-            self.log_dir + 'D_valid')
+        self.__summary_op = tf.summary.merge(tf.get_collection('C'))
+        self.__summary_valid_op = tf.summary.merge(
+            tf.get_collection('C_valid'))
+        self.summary_writer = tf.summary.FileWriter(
+            self.log_dir + 'C')
+        self.valid_summary_writer = tf.summary.FileWriter(
+            self.log_dir + 'C_valid')
 
     def __build_wgan(self):
         with tf.name_scope('WGAN'):
-            D_real = self.inference(self.__X)
-            __D_fake = self.inference(
+            real_scores = self.inference(self.__X)
+            fake_scores = self.inference(
                 self.__G_samples, reuse=True)
             # loss function
-            self.__D_loss, F_real, F_fake, grad_pen = self.__D_loss_fn(
-                self.__X, self.__G_samples, __D_fake, D_real, self.penalty_lambda)
-            theta_D = self.__get_var_list()
-            with tf.name_scope('D_optimizer') as scope:
-                D_optimizer = tf.train.AdamOptimizer(
+            self.__loss, F_real, F_fake, grad_pen = self.__loss_fn(
+                self.__X, self.__G_samples, fake_scores, real_scores, self.penalty_lambda)
+            theta = self.__get_var_list()
+            with tf.name_scope('C_optimizer') as scope:
+                C_optimizer = tf.train.AdamOptimizer(
                     learning_rate=self.learning_rate, beta1=0.5, beta2=0.9)
-                D_grads = tf.gradients(self.__D_loss, theta_D)
-                D_grads = list(zip(D_grads, theta_D))
-                self.__D_train_op = D_optimizer.apply_gradients(
-                    grads_and_vars=D_grads, global_step=self.__global_steps)
+                grads = tf.gradients(self.__loss, theta)
+                grads = list(zip(grads, theta))
+                self.__train_op = C_optimizer.apply_gradients(
+                    grads_and_vars=grads, global_step=self.__global_steps)
             # logging
-            for grad, var in D_grads:
-                self.__summarize(var.name, grad, collections='D',
+            for grad, var in grads:
+                self.__summarize(var.name, grad, collections='C',
                                  postfix='gradient')
-            tf.summary.scalar('D_loss', self.__D_loss,
-                              collections=['D', 'D_valid'])
-            tf.summary.scalar('F_real', F_real, collections=['D'])
-            tf.summary.scalar('F_fake', F_fake, collections=['D'])
-            tf.summary.scalar('grad_pen', grad_pen, collections=['D'])
+            tf.summary.scalar('C_loss', self.__loss,
+                              collections=['C', 'C_valid'])
+            tf.summary.scalar('F_real', F_real, collections=['C'])
+            tf.summary.scalar('F_fake', F_fake, collections=['C'])
+            tf.summary.scalar('grad_pen', grad_pen, collections=['C'])
 
     def __summarize(self, name, value, collections, postfix=''):
         """ Helper to create summaries for activations.
@@ -120,13 +120,13 @@ class C_MODEL(object):
         and add trainable variables into histogram
         """
         trainable_V = tf.trainable_variables()
-        theta_D = []
+        theta = []
         for _, v in enumerate(trainable_V):
-            if v.name.startswith('D'):
-                theta_D.append(v)
-                self.__summarize(v.op.name, v, collections='D',
+            if v.name.startswith('C'):
+                theta.append(v)
+                self.__summarize(v.op.name, v, collections='C',
                                  postfix='Trainable')
-        return theta_D
+        return theta
 
     def __leaky_relu(self, features, alpha=0.7):
         return tf.maximum(features, alpha * features)
@@ -149,7 +149,7 @@ class C_MODEL(object):
         score : float
             real(from data) or fake(from G)
         """
-        with tf.variable_scope('D', reuse=reuse):
+        with tf.variable_scope('C', reuse=reuse):
             strides_list = [1, 2, 2, 2, 2]
             filters_list = [64, 96, 144, 216, 324]
             next_input = inputs
@@ -161,7 +161,7 @@ class C_MODEL(object):
                         kernel_size=[5],
                         strides=strides_list[i],
                         padding='same',
-                        activation=tf.nn.relu,
+                        activation=self.__leaky_relu,
                         kernel_initializer=layers.xavier_initializer(),
                         bias_initializer=tf.zeros_initializer(),
                         reuse=scope.reuse,
@@ -174,6 +174,7 @@ class C_MODEL(object):
                 fc0 = layers.fully_connected(
                     inputs=flatten,
                     num_outputs=512,
+                    activation_fn=self.__leaky_relu,
                     weights_initializer=layers.xavier_initializer(),
                     biases_initializer=tf.zeros_initializer(),
                     reuse=scope.reuse,
@@ -184,6 +185,7 @@ class C_MODEL(object):
                 fc1 = layers.fully_connected(
                     inputs=fc0,
                     num_outputs=1,
+                    activation_fn=self.__leaky_relu,
                     weights_initializer=layers.xavier_initializer(),
                     biases_initializer=tf.zeros_initializer(),
                     reuse=scope.reuse,
@@ -192,10 +194,10 @@ class C_MODEL(object):
                 print(fc1)
             return fc1
 
-    def __D_loss_fn(self, __X, __G_sample, D_fake, D_real, penalty_lambda):
-        """ D loss
+    def __loss_fn(self, __X, __G_sample, fake_scores, real_scores, penalty_lambda):
+        """ C loss
         """
-        with tf.name_scope('D_loss') as scope:
+        with tf.name_scope('C_loss') as scope:
             # grad_pen, base on paper (Improved WGAN)
             epsilon = tf.random_uniform(
                 [self.batch_size, 1, 1], minval=0.0, maxval=1.0)
@@ -208,37 +210,37 @@ class C_MODEL(object):
             grad_norm = tf.sqrt(sum_)
             grad_pen = penalty_lambda * tf.reduce_mean(
                 tf.square(grad_norm - 1.0))
-            f_fake = tf.reduce_mean(D_fake)
-            f_real = tf.reduce_mean(D_real)
+            f_fake = tf.reduce_mean(fake_scores)
+            f_real = tf.reduce_mean(real_scores)
 
             loss = f_fake - f_real + grad_pen
         return loss, f_real, f_fake, grad_pen
 
     def step(self, sess, G_samples, real_data):
-        """ train one batch on D
+        """ train one batch on C
         """
-        self.__D_steps += 1
+        self.__steps += 1
         feed_dict = {self.__G_samples: G_samples,
                      self.__X: real_data}
         loss, global_steps, _ = sess.run(
-            [self.__D_loss, self.__global_steps, self.__D_train_op], feed_dict=feed_dict)
-        if not self.if_log_histogram or self.__D_steps % 500 == 0:  # % 500 to save space
-            summary = sess.run(self.__summary_D_op, feed_dict=feed_dict)
+            [self.__loss, self.__global_steps, self.__train_op], feed_dict=feed_dict)
+        if not self.if_log_histogram or self.__steps % 500 == 0:  # % 500 to save space
+            summary = sess.run(self.__summary_op, feed_dict=feed_dict)
             # log
-            self.D_summary_writer.add_summary(
+            self.summary_writer.add_summary(
                 summary, global_step=global_steps)
         return loss, global_steps
 
-    def D_log_valid_loss(self, sess, G_samples, real_data):
+    def log_valid_loss(self, sess, G_samples, real_data):
         """ one batch valid loss
         """
         feed_dict = {self.__G_samples: G_samples,
                      self.__X: real_data}
         loss, global_steps = sess.run(
-            [self.__D_loss, self.__global_steps], feed_dict=feed_dict)
-        if not self.if_log_histogram or self.__D_steps % 500 == 0:  # % 500 to save space
-            summary = sess.run(self.__summary_D_valid_op, feed_dict=feed_dict)
+            [self.__loss, self.__global_steps], feed_dict=feed_dict)
+        if not self.if_log_histogram or self.__steps % 500 == 0:  # % 500 to save space
+            summary = sess.run(self.__summary_valid_op, feed_dict=feed_dict)
             # log
-            self.D_valid_summary_writer.add_summary(
+            self.valid_summary_writer.add_summary(
                 summary, global_step=global_steps)
         return loss

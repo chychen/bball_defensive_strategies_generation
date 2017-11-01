@@ -14,17 +14,6 @@ from matplotlib.patches import Circle, Rectangle, Arc
 
 from utils import Norm
 
-# * B <-> 0
-# * F <-> 1
-# * G <-> 2
-# * C-F <-> 3
-# * F-G <-> 4
-# * F-C <-> 5
-# * C <-> 6
-# * G-F <-> 7
-PP_LIST = ['B', 'F', 'G', 'C-F', 'F-G', 'F-C', 'C', 'G-F']
-
-
 def update_all(frame_id, player_circles, ball_circle, annotations, data):
     """ 
     Inputs
@@ -98,7 +87,7 @@ def plot_data(data, length, file_path=None, if_save=False, fps=4, dpi=48):
     ax.add_patch(ball_circle)
 
     # annotations on circles
-    annotations = [ax.annotate(name_list[i], xy=[0, 0],
+    annotations = [ax.annotate(name_list[i], xy=[0., 0.],
                                horizontalalignment='center',
                                verticalalignment='center', fontweight='bold')
                    for i in range(11)]
