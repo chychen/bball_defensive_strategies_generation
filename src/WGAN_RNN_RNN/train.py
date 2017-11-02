@@ -142,7 +142,7 @@ def training(sess, model, real_data, num_batches, saver, normer, is_pretrain=Fal
     """
     shuffled_indexes = np.random.permutation(real_data.shape[0])
     real_data = real_data[shuffled_indexes]
-    real_data, valid_data = np.split(real_data, [real_data.shape[0] // 9])
+    real_data, valid_data = np.split(real_data, [real_data.shape[0] //10 * 9])
     print(real_data.shape)
     print(valid_data.shape)
     num_batches = num_batches // 10 * 9

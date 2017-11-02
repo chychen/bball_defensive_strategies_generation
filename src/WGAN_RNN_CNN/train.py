@@ -20,7 +20,7 @@ from Critic import C_MODEL
 FLAGS = tf.app.flags.FLAGS
 
 # path parameters
-tf.app.flags.DEFINE_string('folder_path', 'v26',
+tf.app.flags.DEFINE_string('folder_path', 'v0',
                            "summary directory")
 tf.app.flags.DEFINE_string('data_path', '../../data/F2.npy',
                            "summary directory")
@@ -136,9 +136,10 @@ def training(real_data, normer, config, graph):
     num_batches = real_data.shape[0] // FLAGS.batch_size
     shuffled_indexes = np.random.permutation(real_data.shape[0])
     real_data = real_data[shuffled_indexes]
-    real_data, valid_data = np.split(real_data, [real_data.shape[0] // 9])
+    real_data, valid_data = np.split(real_data, [real_data.shape[0] //10 * 9])
     print(real_data.shape)
     print(valid_data.shape)
+    exit()
     num_batches = num_batches // 10 * 9
     num_valid_batches = num_batches // 10 * 1
     # model

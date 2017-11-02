@@ -132,7 +132,7 @@ class DataFactory(object):
             ], axis=-1
         )[shuffled_indexes]
         train['A'], valid['A'] = np.split(
-            team_A, [self.__real_data.shape[0] // 9])
+            team_A, [self.__real_data.shape[0] // 10 * 9])
         print(train['A'].shape)
         print(valid['A'].shape)
         # B
@@ -140,7 +140,7 @@ class DataFactory(object):
             [self.__real_data.shape[0], self.__real_data.shape[1], 5 * 2]
         )[shuffled_indexes]
         train['B'], valid['B'] = np.split(
-            team_B, [self.__real_data.shape[0] // 9])
+            team_B, [self.__real_data.shape[0] // 10 * 9])
         print(train['B'].shape)
         print(valid['B'].shape)
         return train, valid
@@ -175,6 +175,7 @@ class DataFactory(object):
                 norm_dict[axis_] = {}
                 norm_dict[axis_]['mean'] = mean_
                 norm_dict[axis_]['stddev'] = stddev_
+        return norm_dict
 
 
 def testing_real():

@@ -20,7 +20,7 @@ from Critic import C_MODEL
 FLAGS = tf.app.flags.FLAGS
 
 # path parameters
-tf.app.flags.DEFINE_string('folder_path', 'v26',
+tf.app.flags.DEFINE_string('folder_path', 'v30',
                            "summary directory")
 tf.app.flags.DEFINE_string('data_path', '../../data/F2.npy',
                            "summary directory")
@@ -132,6 +132,8 @@ def training(train_data, valid_data, data_factory, config, graph):
     # number of batches
     num_batches = train_data['A'].shape[0] // FLAGS.batch_size
     num_valid_batches = valid_data['A'].shape[0] // FLAGS.batch_size
+    print(num_batches)
+    print(num_valid_batches)
     # model
     C = C_MODEL(config, graph)
     G = G_MODEL(config, C.inference, graph)
@@ -147,7 +149,6 @@ def training(train_data, valid_data, data_factory, config, graph):
             saver.restore(sess, FLAGS.restore_path)
             print('successfully restore model from checkpoint: %s' %
                   (FLAGS.restore_path))
-
         D_loss_mean = 0.0
         D_valid_loss_mean = 0.0
         G_loss_mean = 0.0
@@ -198,7 +199,8 @@ def training(train_data, valid_data, data_factory, config, graph):
                         sess, fake_samples, valid_real_samples, valid_real_conds)
 
                 # train G
-                G_loss_mean, global_steps = G.step(sess, z_samples())
+                G_loss_mean, global_steps = G.step(
+                    sess, z_samples(), real_conds)
                 log_counter += 1
 
                 # logging
@@ -221,13 +223,17 @@ def training(train_data, valid_data, data_factory, config, graph):
                 print("Model saved in file: %s" % save_path)
             # plot generated sample
             if (epoch_id % FLAGS.save_result_freq) == 0 or epoch_id == FLAGS.total_epoches - 1:
+                # fake
                 samples = G.generate(sess, z_samples(), real_conds)
-                # scale recovering
-                concat_ = np.concatenate([samples, real_conds], axis=-1)
-                result = data_factory.recover_data(concat_)
-                # plot
+                concat_ = np.concatenate([real_conds, samples], axis=-1)
+                fake_result = data_factory.recover_data(concat_)
                 game_visualizer.plot_data(
-                    result[0:], FLAGS.seq_length, file_path=SAMPLE_PATH + str(global_steps) + '.gif', if_save=True)
+                    fake_result[0:], FLAGS.seq_length, file_path=SAMPLE_PATH + str(global_steps) + '_fake.gif', if_save=True)
+                # real
+                concat_ = np.concatenate([real_conds, real_samples], axis=-1)
+                real_result = data_factory.recover_data(concat_)
+                game_visualizer.plot_data(
+                    real_result[0:], FLAGS.seq_length, file_path=SAMPLE_PATH + str(global_steps) + '_real.gif', if_save=True)
 
 
 def main(_):
