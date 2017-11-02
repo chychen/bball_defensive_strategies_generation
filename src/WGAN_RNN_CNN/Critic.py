@@ -70,6 +70,7 @@ class C_MODEL(object):
 
     def __build_wgan(self):
         with tf.name_scope('WGAN'):
+            # inference
             real_scores = self.inference(self.__X)
             fake_scores = self.inference(
                 self.__G_samples, reuse=True)
@@ -149,6 +150,8 @@ class C_MODEL(object):
         score : float
             real(from data) or fake(from G)
         """
+        # extract hand-crafted feature
+        inputs = self.normer.extract_features(inputs)
         with tf.variable_scope('C', reuse=reuse):
             strides_list = [1, 2, 2, 2, 2]
             filters_list = [64, 96, 144, 216, 324]
@@ -194,16 +197,17 @@ class C_MODEL(object):
                 print(fc1)
             return fc1
 
-    def __loss_fn(self, __X, __G_sample, fake_scores, real_scores, penalty_lambda):
+    def __loss_fn(self, X, G_sample, fake_scores, real_scores, penalty_lambda):
         """ C loss
         """
         with tf.name_scope('C_loss') as scope:
             # grad_pen, base on paper (Improved WGAN)
             epsilon = tf.random_uniform(
                 [self.batch_size, 1, 1], minval=0.0, maxval=1.0)
-            __X_inter = epsilon * __X + (1.0 - epsilon) * __G_sample
+            X_inter = epsilon * X + (1.0 - epsilon) * G_sample
+
             grad = tf.gradients(
-                self.inference(__X_inter, reuse=True), [__X_inter])[0]
+                self.inference(X_inter, reuse=True), [X_inter])[0]
             print(grad)
             sum_ = tf.reduce_sum(tf.square(grad), axis=[1, 2])
             print(sum_)

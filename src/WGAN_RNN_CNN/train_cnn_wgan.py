@@ -20,7 +20,7 @@ from Critic import C_MODEL
 FLAGS = tf.app.flags.FLAGS
 
 # path parameters
-tf.app.flags.DEFINE_string('folder_path', 'v25',
+tf.app.flags.DEFINE_string('folder_path', 'v26',
                            "summary directory")
 tf.app.flags.DEFINE_string('data_path', '../../data/F2.npy',
                            "summary directory")
@@ -46,7 +46,7 @@ tf.app.flags.DEFINE_integer('freq_train_D', 51,
                             "freqence of num ephoch to train D more")
 tf.app.flags.DEFINE_integer('batch_size', 128,
                             "batch size")
-tf.app.flags.DEFINE_float('learning_rate', 1e-5,
+tf.app.flags.DEFINE_float('learning_rate', 1e-4,
                           "learning rate")
 tf.app.flags.DEFINE_integer('hidden_size', 512,
                             "hidden size of LSTM")
@@ -65,9 +65,9 @@ tf.app.flags.DEFINE_bool('if_log_histogram', False,
                          "whether to log histogram or not")
 
 # PATH
-LOG_PATH = os.path.join(FLAGS.folder_path, 'log')
-CHECKPOINTS_PATH = os.path.join(FLAGS.folder_path, 'checkpoints')
-SAMPLE_PATH = os.path.join(FLAGS.folder_path, 'sample')
+LOG_PATH = os.path.join(FLAGS.folder_path, 'log/')
+CHECKPOINTS_PATH = os.path.join(FLAGS.folder_path, 'checkpoints/')
+SAMPLE_PATH = os.path.join(FLAGS.folder_path, 'sample/')
 # VISIBLE GPUS
 os.environ['CUDA_VISIBLE_DEVICES'] = FLAGS.gpus
 

@@ -50,6 +50,46 @@ class Norm(object):
                     [self.__real_data.shape[0], self.__real_data.shape[1], 10 * 2])
             ], axis=-1
         )
+    
+    def extract_features(self, t_data):
+        """ extract 202 features from raw data, including
+        * x y z positions = 23
+        * x y z speed = 23, first frame's speed should be zero
+        * x y correlation of 10 players, ball, and 2 basket = (13*13-13)/2*2=156
+
+        params
+        ------
+        t_data : tensor, float, shape=[batch, length, features=23]
+            the sequence data
+        note
+        ----
+        features : 23
+            23 = 10 players + ball
+        """
+        with tf.name_scope('extract') as scope:
+            # info
+            t_shape = t_data.get_shape().as_list()
+
+            # x y z positions = 23
+            t_pos = t_data[:, :, :23]
+            # x y z speed = 23
+            t_speed = tf.concat(
+                [(t_pos[:, 1:t_shape[1], :] - t_pos[:, 0:t_shape[1]-1, :]), tf.zeros(shape=[t_shape[0], 1, 23])], axis=1)
+            # x y correlation of 1 ball, 10 players and 2 basket = (13*13-13)/2*2=156
+            t_correlation = []
+            for axis_ in range(2):
+                t_basket_l = tf.ones(
+                    shape=[t_shape[0], t_shape[1], 1]) * self.__basket_left[axis_]
+                t_basket_r = tf.ones(
+                    shape=[t_shape[0], t_shape[1], 1]) * self.__basket_right[axis_]
+                t_x = tf.concat([t_pos[:, :, 0 + axis_:1 + axis_],
+                                 t_pos[:, :, 3 + axis_::2], t_basket_l, t_basket_r], axis=2)
+                for i in range(13):
+                    for j in range(1, i + 1):
+                        t_vec = t_x[:, :, i] - t_x[:, :, j]
+                        t_correlation.append(t_vec)
+            t_correlation = tf.stack(t_correlation, axis=-1)
+            return tf.concat([t_pos, t_speed, t_correlation], axis=-1)
 
     def recover_data(self, norm_data):
         # X
