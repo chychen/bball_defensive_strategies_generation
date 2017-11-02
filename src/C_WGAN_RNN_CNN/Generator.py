@@ -12,7 +12,7 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.contrib import rnn
 from tensorflow.contrib import layers
-from utils import Norm
+from utils import DataFactory
 
 
 class G_MODEL(object):
@@ -30,7 +30,6 @@ class G_MODEL(object):
             * hidden_size : number of hidden units in LSTM
             * rnn_layers : number of stacked LSTM 
             * seq_length : length of LSTM
-            * num_features : dimensions of input feature
             * latent_dims : dimensions of latent feature
             * penalty_lambda = gradient penalty's weight, ref from  paper of 'improved-wgan'
         graph : 
@@ -43,7 +42,6 @@ class G_MODEL(object):
         self.hidden_size = config.hidden_size
         self.rnn_layers = config.rnn_layers
         self.seq_length = config.seq_length
-        self.num_features = config.num_features
         self.latent_dims = config.latent_dims
         self.penalty_lambda = config.penalty_lambda
         self.if_log_histogram = config.if_log_histogram
@@ -54,6 +52,8 @@ class G_MODEL(object):
         self.critic = critic_inference
         self.__z = tf.placeholder(dtype=tf.float32, shape=[
             self.batch_size, self.seq_length, self.latent_dims], name='latent_input')
+        self.__cond = tf.placeholder(dtype=tf.float32, shape=[
+            self.batch_size, self.seq_length, 13], name='team_a')
         # adversarial learning : wgan
         self.__build_wgan()
 
@@ -64,9 +64,9 @@ class G_MODEL(object):
 
     def __build_wgan(self):
         with tf.name_scope('WGAN'):
-            self.__G_sample = self.__G(self.__z, seq_len=None)
+            self.__G_sample = self.__G(self.__z, self.__cond, seq_len=None)
             # loss function
-            self.__G_loss = self.__G_loss_fn(self.__G_sample)
+            self.__G_loss = self.__G_loss_fn(self.__G_sample, self.__cond)
             with tf.name_scope('G_optimizer') as scope:
                 theta_G = self.__get_var_list()
                 G_optimizer = tf.train.AdamOptimizer(
@@ -123,12 +123,14 @@ class G_MODEL(object):
                             forget_bias=1.0, state_is_tuple=True,
                             activation=tf.nn.tanh, reuse=tf.get_variable_scope().reuse)
 
-    def __G(self, inputs, seq_len=None, if_pretrain=False):
+    def __G(self, latents, conds, seq_len=None, if_pretrain=False):
         """ TODO
         Inputs
         ------
-        inputs : float, shape=[batch, length=100, dims=23]
+        latents : float, shape=[batch, length=100, dims=10]
             latent variables
+        conds : float, shape=[batch, length=100, dims=13]
+            conditional constraints of team A and ball
         seq_len : 
             temparily not used
 
@@ -142,18 +144,14 @@ class G_MODEL(object):
                 [self.__lstm_cell() for _ in range(self.rnn_layers)])
             state = cell.zero_state(
                 batch_size=self.batch_size, dtype=tf.float32)
-            # as we feed the output as the input to the next, we 'invent' the
-            # initial 'output' as generated_point in the begining. TODO
-            generated_point = tf.random_normal(
-                shape=[self.batch_size, self.num_features])
             # model
             output_list = []
             first_player_fc = []
             for time_step in range(self.seq_length):
                 if time_step > 0:
                     tf.get_variable_scope().reuse_variables()
-                concat_values = [inputs[:, time_step, :]]
-                concat_values.append(generated_point)
+                concat_values = [latents[:, time_step, :],
+                                 conds[:, time_step, :]]
                 concat_input = tf.concat(values=concat_values, axis=1)
                 with tf.variable_scope('fully_connect_concat') as scope:
                     lstm_input = layers.fully_connected(
@@ -174,7 +172,7 @@ class G_MODEL(object):
                 with tf.variable_scope('position_fc') as scope:
                     position_fc = layers.fully_connected(
                         inputs=cell_out,
-                        num_outputs=23,
+                        num_outputs=10,
                         activation_fn=self.__leaky_relu,
                         weights_initializer=layers.xavier_initializer(
                             uniform=False),
@@ -182,25 +180,25 @@ class G_MODEL(object):
                         scope=scope)
                     self.__summarize('position_fc', position_fc, collections=[
                         'G'], postfix='Activation')
-                generated_point = position_fc
-                output_list.append(generated_point)
+                output_list.append(position_fc)
             # stack, axis=1 -> [batch, time, feature]
             result = tf.stack(output_list, axis=1)
             print('result', result)
             return result
 
-    def __G_loss_fn(self, fake_samples):
+    def __G_loss_fn(self, fake_samples, conds):
         """ G loss
         """
         with tf.name_scope('G_loss') as scope:
-            loss = -tf.reduce_mean(self.critic(fake_samples, reuse=True))
+            loss = - \
+                tf.reduce_mean(self.critic(fake_samples, conds, reuse=True))
         return loss
 
-    def step(self, sess, latent_inputs):
+    def step(self, sess, latent_inputs, conditions):
         """ train one batch on G
         """
         self.__G_steps += 1
-        feed_dict = {self.__z: latent_inputs}
+        feed_dict = {self.__z: latent_inputs, self.__cond: conditions}
         loss, global_steps, _ = sess.run(
             [self.__G_loss, self.__global_steps,
                 self.__G_train_op], feed_dict=feed_dict)
@@ -211,9 +209,9 @@ class G_MODEL(object):
                 summary, global_step=global_steps)
         return loss, global_steps
 
-    def generate(self, sess, latent_inputs):
+    def generate(self, sess, latent_inputs, conditions):
         """ to generate result
         """
-        feed_dict = {self.__z: latent_inputs}
+        feed_dict = {self.__z: latent_inputs, self.__cond: conditions}
         result = sess.run(self.__G_sample, feed_dict=feed_dict)
         return result
