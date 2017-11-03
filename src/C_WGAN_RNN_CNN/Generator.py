@@ -119,7 +119,7 @@ class G_MODEL(object):
         return tf.maximum(features, alpha * features)
 
     def __lstm_cell(self):
-        return rnn.LSTMCell(self.hidden_size, use_peepholes=True, initializer=None,
+        return rnn.LSTMCell(self.hidden_size, use_peepholes=False, initializer=None,
                             forget_bias=1.0, state_is_tuple=True,
                             activation=tf.nn.tanh, reuse=tf.get_variable_scope().reuse)
 
@@ -150,8 +150,15 @@ class G_MODEL(object):
             for time_step in range(self.seq_length):
                 if time_step > 0:
                     tf.get_variable_scope().reuse_variables()
-                concat_values = [latents[:, time_step, :],
-                                 conds[:, time_step, :]]
+                if time_step ==0:
+                    # one as start info
+                    concat_values = [conds[:, time_step, :],
+                                    latents[:, time_step, :],
+                                    tf.ones(shape=[self.batch_size, 1])]
+                else:
+                    concat_values = [conds[:, time_step, :],
+                                    latents[:, time_step, :],
+                                    tf.zeros(shape=[self.batch_size, 1])]
                 concat_input = tf.concat(values=concat_values, axis=1)
                 with tf.variable_scope('fully_connect_concat') as scope:
                     lstm_input = layers.fully_connected(

@@ -135,12 +135,6 @@ class C_MODEL(object):
     def __leaky_relu(self, features, alpha=0.7):
         return tf.maximum(features, alpha * features)
 
-    def __lstm_cell(self):
-        return rnn.LSTMCell(self.hidden_size, use_peepholes=True, initializer=None,
-                            forget_bias=1.0, state_is_tuple=True,
-                            # activation=self.__leaky_relu, cell_clip=2,
-                            activation=tf.nn.tanh, reuse=tf.get_variable_scope().reuse)
-
     def inference(self, inputs, conds, reuse=False):
         """
         Inputs
@@ -155,9 +149,11 @@ class C_MODEL(object):
             real(from data) or fake(from G)
         """
         with tf.variable_scope('C', reuse=reuse):
-            # extract hand-crafted feature
-            # inputs = self.data_factory.extract_features(inputs)
-            concat_input = tf.concat(values=[inputs, conds], axis=2)
+            concat_input = tf.concat(values=[conds, inputs], axis=2)
+            # # extract hand-crafted feature
+            # concat_input = self.data_factory.extract_features(concat_input)
+            # strides_list = [1, 1, 2, 1, 2, 1, 2, 1, 2, 1]
+            # filters_list = [64, 64, 96, 96, 144, 144, 216, 216, 324, 324]
             strides_list = [1, 2, 2, 2, 2]
             filters_list = [64, 96, 144, 216, 324]
             next_input = concat_input

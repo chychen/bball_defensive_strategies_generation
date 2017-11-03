@@ -20,7 +20,7 @@ from Critic import C_MODEL
 FLAGS = tf.app.flags.FLAGS
 
 # path parameters
-tf.app.flags.DEFINE_string('folder_path', 'v30',
+tf.app.flags.DEFINE_string('folder_path', 'v32',
                            "summary directory")
 tf.app.flags.DEFINE_string('data_path', '../../data/F2.npy',
                            "summary directory")
@@ -38,7 +38,7 @@ tf.app.flags.DEFINE_integer('total_epoches', 1500,
                             "num of ephoches")
 tf.app.flags.DEFINE_integer('num_train_D', 5,
                             "num of times of training D before train G")
-tf.app.flags.DEFINE_integer('num_pretrain_D', 5,
+tf.app.flags.DEFINE_integer('num_pretrain_D', 0,
                             "num of ephoch to train D before train G")
 tf.app.flags.DEFINE_integer('freq_train_D', 51,
                             "freqence of num ephoch to train D more")
@@ -207,7 +207,7 @@ def training(train_data, valid_data, data_factory, config, graph):
                 if log_counter >= FLAGS.log_freq:
                     end_time = time.time()
                     log_counter = 0
-                    print("%d, epoches, %d steps, mean D_loss: %f, mean D_valid_loss: %f, mean G_loss: %f, time cost: %f(sec)" %
+                    print("%d, epoches, %d steps, mean C_loss: %f, mean C_valid_loss: %f, mean G_loss: %f, time cost: %f(sec)" %
                           (epoch_id,
                            global_steps,
                            D_loss_mean,
