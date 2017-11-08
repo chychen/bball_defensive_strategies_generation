@@ -19,8 +19,11 @@ from Generator import G_MODEL
 from Critic import C_MODEL
 FLAGS = tf.app.flags.FLAGS
 
+# comment
+tf.app.flags.DEFINE_string('comment', None,
+                           "(required) what would you like to test?")
 # path parameters
-tf.app.flags.DEFINE_string('folder_path', 'v36',
+tf.app.flags.DEFINE_string('folder_path', 'v38',
                            "summary directory")
 tf.app.flags.DEFINE_string('data_path', '../../data/FEATURES.npy',
                            "summary directory")
@@ -257,6 +260,7 @@ def main(_):
 
 
 if __name__ == '__main__':
+    assert FLAGS.comment is not None
     if FLAGS.restore_path is None:
         # when not restore, remove follows (old) for new training
         if os.path.exists(FLAGS.folder_path):
