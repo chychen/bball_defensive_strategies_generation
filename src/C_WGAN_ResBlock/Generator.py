@@ -46,6 +46,7 @@ class G_MODEL(object):
         self.latent_dims = config.latent_dims
         self.penalty_lambda = config.penalty_lambda
         self.if_log_histogram = config.if_log_histogram
+        self.n_resblock = config.n_resblock
         # steps
         self.__global_steps = tf.train.get_or_create_global_step(graph=graph)
         self.__G_steps = 0
@@ -152,7 +153,7 @@ class G_MODEL(object):
                 print(linear)
             next_input = linear
             # residual block
-            for i in range(5):
+            for i in range(self.n_resblock):
                 res_block = libs.residual_block('Res' + str(i), next_input)
                 next_input = res_block
                 print(next_input)

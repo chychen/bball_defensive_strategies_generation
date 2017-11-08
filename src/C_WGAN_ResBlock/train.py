@@ -34,7 +34,7 @@ tf.app.flags.DEFINE_integer('latent_dims', 10,
 # training parameters
 tf.app.flags.DEFINE_string('gpus', '0',
                            "define visible gpus")
-tf.app.flags.DEFINE_integer('total_epoches',5000,
+tf.app.flags.DEFINE_integer('total_epoches', 5000,
                             "num of ephoches")
 tf.app.flags.DEFINE_integer('num_train_D', 5,
                             "num of times of training D before train G")
@@ -52,6 +52,8 @@ tf.app.flags.DEFINE_integer('rnn_layers', 2,
                             "num of layers for rnn")
 tf.app.flags.DEFINE_float('penalty_lambda', 10.0,
                           "regularization parameter of wGAN loss function")
+tf.app.flags.DEFINE_integer('n_resblock', 3,
+                            "number of resblock for Generator and Critic")
 # logging
 tf.app.flags.DEFINE_integer('save_model_freq', 100,
                             "num of epoches to save model")
@@ -96,6 +98,7 @@ class TrainingConfig(object):
         self.num_pretrain_D = FLAGS.num_pretrain_D
         self.freq_train_D = FLAGS.freq_train_D
         self.if_log_histogram = FLAGS.if_log_histogram
+        self.n_resblock = FLAGS.n_resblock
         with open(os.path.join(FLAGS.folder_path, 'hyper_parameters.json'), 'w') as outfile:
             json.dump(FLAGS.__dict__['__flags'], outfile)
 
@@ -119,6 +122,7 @@ class TrainingConfig(object):
         print("num_pretrain_D:", self.num_pretrain_D)
         print("freq_train_D:", self.freq_train_D)
         print("if_log_histogram:", self.if_log_histogram)
+        print("n_resblock:", self.n_resblock)
 
 
 def z_samples():
