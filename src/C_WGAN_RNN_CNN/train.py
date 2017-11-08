@@ -34,7 +34,7 @@ tf.app.flags.DEFINE_integer('latent_dims', 10,
 # training parameters
 tf.app.flags.DEFINE_string('gpus', '0',
                            "define visible gpus")
-tf.app.flags.DEFINE_integer('total_epoches', 1500,
+tf.app.flags.DEFINE_integer('total_epoches', 5000,
                             "num of ephoches")
 tf.app.flags.DEFINE_integer('num_train_D', 5,
                             "num of times of training D before train G")
@@ -53,11 +53,11 @@ tf.app.flags.DEFINE_integer('rnn_layers', 2,
 tf.app.flags.DEFINE_float('penalty_lambda', 10.0,
                           "regularization parameter of wGAN loss function")
 # logging
-tf.app.flags.DEFINE_integer('save_model_freq', 60,
+tf.app.flags.DEFINE_integer('save_model_freq', 100,
                             "num of epoches to save model")
-tf.app.flags.DEFINE_integer('save_result_freq', 30,
+tf.app.flags.DEFINE_integer('save_result_freq', 50,
                             "num of epoches to save gif")
-tf.app.flags.DEFINE_integer('log_freq', 200,
+tf.app.flags.DEFINE_integer('log_freq', 1000,
                             "num of steps to log")
 tf.app.flags.DEFINE_bool('if_log_histogram', False,
                          "whether to log histogram or not")

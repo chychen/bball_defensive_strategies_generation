@@ -107,6 +107,27 @@ class DataFactory(object):
             self.__norm_dict['z']['stddev'] + self.__norm_dict['z']['mean']
         return norm_data
 
+    def recover_BALL_and_A(self, norm_data):
+        # X
+        norm_data[:, :, [0, 3, 5, 7, 9, 11]] = norm_data[:, :, [0, 3, 5, 7, 9, 11]] * \
+            self.__norm_dict['x']['stddev'] + self.__norm_dict['x']['mean']
+        # Y
+        norm_data[:, :, [1, 4, 6, 8, 10, 12]] = norm_data[:, :, [1, 4, 6, 8, 10, 12]] * \
+            self.__norm_dict['y']['stddev'] + self.__norm_dict['y']['mean']
+        # Z
+        norm_data[:, :, 2] = norm_data[:, :, 2] * \
+            self.__norm_dict['z']['stddev'] + self.__norm_dict['z']['mean']
+        return norm_data
+
+    def recover_B(self, norm_data):
+        # X
+        norm_data[:, :, [0, 2, 4, 6, 8]] = norm_data[:, :, [0, 2, 4, 6, 8]] * \
+            self.__norm_dict['x']['stddev'] + self.__norm_dict['x']['mean']
+        # Y
+        norm_data[:, :, [1, 3, 5, 7, 9]] = norm_data[:, :, [1, 3, 5, 7, 9]] * \
+            self.__norm_dict['y']['stddev'] + self.__norm_dict['y']['mean']
+        return norm_data
+
     def shuffle(self):
         shuffled_indexes = np.random.permutation(self.train_data['A'].shape[0])
         self.train_data['A'] = self.train_data['A'][shuffled_indexes]
