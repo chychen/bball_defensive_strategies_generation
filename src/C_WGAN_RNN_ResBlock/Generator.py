@@ -53,7 +53,7 @@ class G_MODEL(object):
         # IO
         self.critic = critic_inference
         self.__z = tf.placeholder(dtype=tf.float32, shape=[
-            self.batch_size, self.seq_length, self.latent_dims], name='latent_input')
+            self.batch_size, self.latent_dims], name='latent_input')
         self.__cond = tf.placeholder(dtype=tf.float32, shape=[
             self.batch_size, self.seq_length, 13], name='team_a')
         # adversarial learning : wgan
@@ -130,7 +130,7 @@ class G_MODEL(object):
         """ TODO
         Inputs
         ------
-        latents : float, shape=[batch, length=100, dims=10]
+        latents : float, shape=[batch, dims=100]
             latent variables
         conds : float, shape=[batch, length=100, dims=13]
             conditional constraints of team A and ball
@@ -143,18 +143,6 @@ class G_MODEL(object):
             generative result (script)
         """
         with tf.variable_scope('G'):  # init
-            # concat_ = tf.concat([conds, latents], axis=-1)
-            # with tf.variable_scope('linear') as scope:
-            #     linear = layers.fully_connected(
-            #         inputs=concat_,
-            #         num_outputs=256,
-            #         activation_fn=libs.leaky_relu,
-            #         weights_initializer=layers.xavier_initializer(
-            #             uniform=False),
-            #         biases_initializer=tf.zeros_initializer(),
-            #         scope=scope
-            #     )
-            #     print(linear)
             with tf.variable_scope('conds_linear') as scope:
                 conds_linear = layers.fully_connected(
                     inputs=conds,
@@ -175,30 +163,65 @@ class G_MODEL(object):
                     biases_initializer=tf.zeros_initializer(),
                     scope=scope
                 )
-            next_input = tf.add(conds_linear, latents_linear)
-            print(next_input)
-            # residual block
-            for i in range(self.n_resblock):
-                res_block = libs.residual_block('Res' + str(i), next_input)
-                next_input = res_block
-                print(next_input)
-            with tf.variable_scope('conv_result') as scope:
-                conv_result = tf.layers.conv1d(
-                    inputs=next_input,
-                    filters=10,
-                    kernel_size=5,
-                    strides=1,
-                    padding='same',
-                    activation=libs.leaky_relu,
-                    kernel_initializer=layers.xavier_initializer(),
-                    bias_initializer=tf.zeros_initializer(),
-                    reuse=scope.reuse,
-                    name=scope.name
-                )
-                print(conv_result)
-            return conv_result
+            latents_linear = tf.reshape(latents_linear, shape=[
+                                        self.batch_size, 1, 256])
+            # use broadcasting rules
+            inputs = tf.add(conds_linear, latents_linear)
+            print(conds_linear)
+            print(latents_linear)
+            print(inputs)
+            # model
+            cell = rnn.MultiRNNCell(
+                [self.__lstm_cell() for _ in range(self.rnn_layers)])
+            state = cell.zero_state(
+                batch_size=self.batch_size, dtype=tf.float32)
+            # as we feed the output as the input to the next, we 'invent' the
+            # initial 'output' as generated_point in the begining. TODO
+            generated_point = tf.random_normal(
+                shape=[self.batch_size, 10])
+            output_list = []
+            first_player_fc = []
+            for time_step in range(self.seq_length):
+                if time_step > 0:
+                    tf.get_variable_scope().reuse_variables()
+                concat_values = [inputs[:, time_step, :]]
+                concat_values.append(generated_point)
+                concat_input = tf.concat(values=concat_values, axis=1)
+                with tf.variable_scope('fully_connect_concat') as scope:
+                    lstm_input = layers.fully_connected(
+                        inputs=concat_input,
+                        num_outputs=self.hidden_size,
+                        activation_fn=libs.leaky_relu,
+                        weights_initializer=layers.xavier_initializer(
+                            uniform=False),
+                        biases_initializer=tf.zeros_initializer(),
+                        scope=scope)
+                    self.__summarize('lstm_input', lstm_input, collections=[
+                        'G'], postfix='Activation')
+                with tf.variable_scope('stack_lstm') as scope:
+                    cell_out, state = cell(
+                        inputs=lstm_input, state=state, scope=scope)
+                    self.__summarize('cell_out', cell_out, collections=[
+                        'G'], postfix='Activation')
+                with tf.variable_scope('position_fc') as scope:
+                    position_fc = layers.fully_connected(
+                        inputs=cell_out,
+                        num_outputs=10,
+                        activation_fn=libs.leaky_relu,
+                        weights_initializer=layers.xavier_initializer(
+                            uniform=False),
+                        biases_initializer=tf.zeros_initializer(),
+                        scope=scope)
+                    self.__summarize('position_fc', position_fc, collections=[
+                        'G'], postfix='Activation')
+                generated_point = position_fc
+                output_list.append(generated_point)
+            # stack, axis=1 -> [batch, time, feature]
+            result = tf.stack(output_list, axis=1)
+            print('result', result)
+            return result
 
-    def __G_loss_fn(self, fake_samples, conds, lambda_=100):
+    def __G_loss_fn(self, fake_samples, conds, lambda_=10):
         """ G loss
         """
         with tf.name_scope('G_loss') as scope:
@@ -208,7 +231,7 @@ class G_MODEL(object):
                 if 'G/latents_linear/weights' in v.name:
                     mean_latents = tf.reduce_mean(tf.abs(v), axis=0)
                     tf.summary.image(
-                        'latents_linear_weight', tf.reshape(v, shape=[1, 10, 256, 1]), max_outputs=1, collections=['G_weight'])
+                        'latents_linear_weight', tf.reshape(v, shape=[1, 100, 256, 1]), max_outputs=1, collections=['G_weight'])
                 if 'G/conds_linear/weights' in v.name:
                     mean_conds = tf.reduce_mean(tf.abs(v), axis=0)
                     tf.summary.image(
