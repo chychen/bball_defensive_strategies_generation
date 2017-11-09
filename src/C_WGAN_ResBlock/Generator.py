@@ -61,6 +61,8 @@ class G_MODEL(object):
 
         # summary
         self.__summary_G_op = tf.summary.merge(tf.get_collection('G'))
+        self.__summary_G_weight_op = tf.summary.merge(
+            tf.get_collection('G_weight'))
         self.G_summary_writer = tf.summary.FileWriter(
             self.log_dir + 'G')
 
@@ -68,9 +70,10 @@ class G_MODEL(object):
         with tf.name_scope('WGAN'):
             self.__G_sample = self.__G(self.__z, self.__cond, seq_len=None)
             # loss function
-            self.__G_loss = self.__G_loss_fn(self.__G_sample, self.__cond)
+            self.__G_loss, self.__G_penalty_latents_w = self.__G_loss_fn(
+                self.__G_sample, self.__cond)
             with tf.name_scope('G_optimizer') as scope:
-                theta_G = self.__get_var_list()
+                theta_G = self.__get_var_list('G')
                 G_optimizer = tf.train.AdamOptimizer(
                     learning_rate=self.learning_rate, beta1=0.5, beta2=0.9)
                 G_grads = tf.gradients(self.__G_loss, theta_G)
@@ -82,6 +85,8 @@ class G_MODEL(object):
                 self.__summarize(var.name, grad, collections='G',
                                  postfix='gradient')
             tf.summary.scalar('G_loss', self.__G_loss, collections=['G'])
+            tf.summary.scalar('G_penalty_latents_w',
+                              self.__G_penalty_latents_w, collections=['G'])
 
     def __summarize(self, name, value, collections, postfix=''):
         """ Helper to create summaries for activations.
@@ -104,18 +109,17 @@ class G_MODEL(object):
             # tf.summary.scalar(tensor_name + '/sparsity',
             #                   tf.nn.zero_fraction(x), collections=collections)
 
-    def __get_var_list(self):
-        """ to get both Generator's and Discriminator's trainable variables
-        and add trainable variables into histogram
+    def __get_var_list(self, prefix):
+        """ to get both Generator's trainable variables and add trainable variables into histogram
         """
         trainable_V = tf.trainable_variables()
-        theta_G = []
+        theta = []
         for _, v in enumerate(trainable_V):
-            if v.name.startswith('G'):
-                theta_G.append(v)
-                self.__summarize(v.op.name, v, collections='G',
+            if v.name.startswith(prefix):
+                theta.append(v)
+                self.__summarize(v.op.name, v, collections=prefix,
                                  postfix='Trainable')
-        return theta_G
+        return theta
 
     def __lstm_cell(self):
         return rnn.LSTMCell(self.hidden_size, use_peepholes=False, initializer=None,
@@ -139,19 +143,40 @@ class G_MODEL(object):
             generative result (script)
         """
         with tf.variable_scope('G'):  # init
-            concat_ = tf.concat([conds, latents], axis=-1)
-            with tf.variable_scope('linear') as scope:
-                linear = layers.fully_connected(
-                    inputs=concat_,
+            # concat_ = tf.concat([conds, latents], axis=-1)
+            # with tf.variable_scope('linear') as scope:
+            #     linear = layers.fully_connected(
+            #         inputs=concat_,
+            #         num_outputs=256,
+            #         activation_fn=libs.leaky_relu,
+            #         weights_initializer=layers.xavier_initializer(
+            #             uniform=False),
+            #         biases_initializer=tf.zeros_initializer(),
+            #         scope=scope
+            #     )
+            #     print(linear)
+            with tf.variable_scope('conds_linear') as scope:
+                conds_linear = layers.fully_connected(
+                    inputs=conds,
                     num_outputs=256,
-                    activation_fn=libs.leaky_relu,
+                    activation_fn=None,
                     weights_initializer=layers.xavier_initializer(
                         uniform=False),
                     biases_initializer=tf.zeros_initializer(),
                     scope=scope
                 )
-                print(linear)
-            next_input = linear
+            with tf.variable_scope('latents_linear') as scope:
+                latents_linear = layers.fully_connected(
+                    inputs=latents,
+                    num_outputs=256,
+                    activation_fn=None,
+                    weights_initializer=layers.xavier_initializer(
+                        uniform=False),
+                    biases_initializer=tf.zeros_initializer(),
+                    scope=scope
+                )
+            next_input = tf.add(conds_linear, latents_linear)
+            print(next_input)
             # residual block
             for i in range(self.n_resblock):
                 res_block = libs.residual_block('Res' + str(i), next_input)
@@ -173,27 +198,46 @@ class G_MODEL(object):
                 print(conv_result)
             return conv_result
 
-    def __G_loss_fn(self, fake_samples, conds):
+    def __G_loss_fn(self, fake_samples, conds, lambda_=100):
         """ G loss
         """
         with tf.name_scope('G_loss') as scope:
+            # penalize if network no use latent variables
+            trainable_V = tf.trainable_variables()
+            for v in trainable_V:
+                if 'G/latents_linear/weights' in v.name:
+                    mean_latents = tf.reduce_mean(tf.abs(v), axis=0)
+                    tf.summary.image(
+                        'latents_linear_weight', tf.reshape(v, shape=[1, 10, 256, 1]), max_outputs=1, collections=['G_weight'])
+                if 'G/conds_linear/weights' in v.name:
+                    mean_conds = tf.reduce_mean(tf.abs(v), axis=0)
+                    tf.summary.image(
+                        'conds_linear_weight', tf.reshape(v, shape=[1, 13, 256, 1]), max_outputs=1, collections=['G_weight'])
+            penalty_latents_w = lambda_ * tf.reduce_sum(
+                tf.abs(mean_latents - mean_conds))
             loss = - \
-                tf.reduce_mean(self.critic(fake_samples, conds, reuse=True))
-        return loss
+                tf.reduce_mean(self.critic(fake_samples, conds,
+                                           reuse=True)) + penalty_latents_w
+        return loss, penalty_latents_w
 
     def step(self, sess, latent_inputs, conditions):
         """ train one batch on G
         """
-        self.__G_steps += 1
         feed_dict = {self.__z: latent_inputs, self.__cond: conditions}
         loss, global_steps, _ = sess.run(
             [self.__G_loss, self.__global_steps,
                 self.__G_train_op], feed_dict=feed_dict)
+        if self.__G_steps % 5000 == 0:
+            summary = sess.run(self.__summary_G_weight_op, feed_dict=feed_dict)
+            self.G_summary_writer.add_summary(
+                summary, global_step=global_steps)
         if not self.if_log_histogram or self.__G_steps % 100 == 0:  # % 100 to save space
             summary = sess.run(self.__summary_G_op, feed_dict=feed_dict)
             # log
             self.G_summary_writer.add_summary(
                 summary, global_step=global_steps)
+
+        self.__G_steps += 1
         return loss, global_steps
 
     def generate(self, sess, latent_inputs, conditions):

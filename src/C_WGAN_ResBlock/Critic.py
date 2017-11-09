@@ -180,7 +180,7 @@ class C_MODEL(object):
                 linear_result = layers.fully_connected(
                     inputs=flatten_,
                     num_outputs=1,
-                    activation_fn=libs.leaky_relu,
+                    activation_fn=None,
                     weights_initializer=layers.xavier_initializer(
                         uniform=False),
                     biases_initializer=tf.zeros_initializer(),

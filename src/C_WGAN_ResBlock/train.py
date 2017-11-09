@@ -55,7 +55,7 @@ tf.app.flags.DEFINE_integer('rnn_layers', 2,
                             "num of layers for rnn")
 tf.app.flags.DEFINE_float('penalty_lambda', 10.0,
                           "regularization parameter of wGAN loss function")
-tf.app.flags.DEFINE_integer('n_resblock', 3,
+tf.app.flags.DEFINE_integer('n_resblock', 5,
                             "number of resblock for Generator and Critic")
 # logging
 tf.app.flags.DEFINE_integer('save_model_freq', 100,
@@ -260,7 +260,7 @@ def main(_):
 
 
 if __name__ == '__main__':
-    assert FLAGS.comment is not None
+    assert FLAGS.comment is not None, 'comment is required, please add it by --comment'
     if FLAGS.restore_path is None:
         # when not restore, remove follows (old) for new training
         if os.path.exists(FLAGS.folder_path):
