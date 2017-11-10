@@ -55,6 +55,8 @@ tf.app.flags.DEFINE_integer('rnn_layers', 2,
                             "num of layers for rnn")
 tf.app.flags.DEFINE_float('penalty_lambda', 10.0,
                           "regularization parameter of wGAN loss function")
+tf.app.flags.DEFINE_float('latent_penalty_lambda', 10.0,
+                          "regularization for latent's weight")
 tf.app.flags.DEFINE_integer('n_resblock', 5,
                             "number of resblock for Generator and Critic")
 # logging
@@ -97,6 +99,7 @@ class TrainingConfig(object):
         self.seq_length = FLAGS.seq_length
         self.latent_dims = FLAGS.latent_dims
         self.penalty_lambda = FLAGS.penalty_lambda
+        self.latent_penalty_lambda = FLAGS.latent_penalty_lambda
         self.num_train_D = FLAGS.num_train_D
         self.num_pretrain_D = FLAGS.num_pretrain_D
         self.freq_train_D = FLAGS.freq_train_D
@@ -106,27 +109,7 @@ class TrainingConfig(object):
             json.dump(FLAGS.__dict__['__flags'], outfile)
 
     def show(self):
-        print("total_epoches:", self.total_epoches)
-        print("batch_size:", self.batch_size)
-        print("log_dir:", LOG_PATH)
-        print("checkpoints_dir:", self.checkpoints_dir)
-        print("sample_dir:", self.sample_dir)
-        print("data_path:", self.data_path)
-        print("learning_rate:", self.learning_rate)
-        print("hidden_size:", self.hidden_size)
-        print("rnn_layers:", self.rnn_layers)
-        print("save_model_freq:", self.save_model_freq)
-        print("save_result_freq:", self.save_result_freq)
-        print("log_freq:", self.log_freq)
-        print("seq_length:", self.seq_length)
-        print("latent_dims:", self.latent_dims)
-        print("penalty_lambda:", self.penalty_lambda)
-        print("num_train_D:", self.num_train_D)
-        print("num_pretrain_D:", self.num_pretrain_D)
-        print("freq_train_D:", self.freq_train_D)
-        print("if_log_histogram:", self.if_log_histogram)
-        print("n_resblock:", self.n_resblock)
-
+        print(FLAGS.__dict__['__flags'])
 
 def z_samples():
     return np.random.normal(

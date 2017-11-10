@@ -45,6 +45,7 @@ class G_MODEL(object):
         self.seq_length = config.seq_length
         self.latent_dims = config.latent_dims
         self.penalty_lambda = config.penalty_lambda
+        self.latent_penalty_lambda = config.latent_penalty_lambda
         self.if_log_histogram = config.if_log_histogram
         self.n_resblock = config.n_resblock
         # steps
@@ -71,7 +72,7 @@ class G_MODEL(object):
             self.__G_sample = self.__G(self.__z, self.__cond, seq_len=None)
             # loss function
             self.__G_loss, self.__G_penalty_latents_w = self.__G_loss_fn(
-                self.__G_sample, self.__cond)
+                self.__G_sample, self.__cond, lambda_=self.latent_penalty_lambda)
             with tf.name_scope('G_optimizer') as scope:
                 theta_G = self.__get_var_list('G')
                 G_optimizer = tf.train.AdamOptimizer(
@@ -200,7 +201,7 @@ class G_MODEL(object):
                 print(conv_result)
             return conv_result
 
-    def __G_loss_fn(self, fake_samples, conds, lambda_=10):
+    def __G_loss_fn(self, fake_samples, conds, lambda_):
         """ G loss
         """
         with tf.name_scope('G_loss') as scope:
