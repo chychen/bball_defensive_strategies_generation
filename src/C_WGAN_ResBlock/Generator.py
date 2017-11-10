@@ -232,7 +232,7 @@ class G_MODEL(object):
         loss, global_steps, _ = sess.run(
             [self.__G_loss, self.__global_steps,
                 self.__G_train_op], feed_dict=feed_dict)
-        if self.__G_steps % 1000 == 0:
+        if self.__G_steps % 200 == 0:
             summary = sess.run(self.__summary_G_weight_op, feed_dict=feed_dict)
             self.G_summary_writer.add_summary(
                 summary, global_step=global_steps)
