@@ -23,7 +23,7 @@ FLAGS = tf.app.flags.FLAGS
 tf.app.flags.DEFINE_string('comment', None,
                            "(required) what would you like to test?")
 # path parameters
-tf.app.flags.DEFINE_string('folder_path', 'v39',
+tf.app.flags.DEFINE_string('folder_path', 'v42',
                            "summary directory")
 tf.app.flags.DEFINE_string('data_path', '../../data/FEATURES.npy',
                            "summary directory")
@@ -32,7 +32,7 @@ tf.app.flags.DEFINE_string('restore_path', None,
 # input parameters
 tf.app.flags.DEFINE_integer('seq_length', 100,
                             "the maximum length of one training data")
-tf.app.flags.DEFINE_integer('latent_dims', 100,
+tf.app.flags.DEFINE_integer('latent_dims', 10,
                             "dimensions of latant variable")
 # training parameters
 tf.app.flags.DEFINE_string('gpus', '0',
@@ -43,7 +43,7 @@ tf.app.flags.DEFINE_integer('num_train_D', 5,
                             "num of times of training D before train G")
 tf.app.flags.DEFINE_integer('num_pretrain_D', 0,
                             "num of ephoch to train D before train G")
-tf.app.flags.DEFINE_integer('freq_train_D', 51,
+tf.app.flags.DEFINE_integer('freq_train_D', 31,
                             "freqence of num ephoch to train D more")
 tf.app.flags.DEFINE_integer('batch_size', 128,
                             "batch size")
@@ -62,7 +62,7 @@ tf.app.flags.DEFINE_integer('n_resblock', 5,
 # logging
 tf.app.flags.DEFINE_integer('save_model_freq', 100,
                             "num of epoches to save model")
-tf.app.flags.DEFINE_integer('save_result_freq', 50,
+tf.app.flags.DEFINE_integer('save_result_freq', 30,
                             "num of epoches to save gif")
 tf.app.flags.DEFINE_integer('log_freq', 1000,
                             "num of steps to log")

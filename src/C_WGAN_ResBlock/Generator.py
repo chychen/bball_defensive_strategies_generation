@@ -186,8 +186,10 @@ class G_MODEL(object):
                 next_input = res_block
                 print(next_input)
             with tf.variable_scope('conv_result') as scope:
+                normed = layers.layer_norm(next_input)
+                nonlinear = libs.leaky_relu(normed)
                 conv_result = tf.layers.conv1d(
-                    inputs=next_input,
+                    inputs=nonlinear,
                     filters=10,
                     kernel_size=5,
                     strides=1,
@@ -211,7 +213,7 @@ class G_MODEL(object):
                 if 'G/latents_linear/weights' in v.name:
                     mean_latents = tf.reduce_mean(tf.abs(v), axis=0)
                     tf.summary.image(
-                        'latents_linear_weight', tf.reshape(v, shape=[1, 100, 256, 1]), max_outputs=1, collections=['G_weight'])
+                        'latents_linear_weight', tf.reshape(v, shape=[1, self.latent_dims, 256, 1]), max_outputs=1, collections=['G_weight'])
                 if 'G/conds_linear/weights' in v.name:
                     mean_conds = tf.reduce_mean(tf.abs(v), axis=0)
                     tf.summary.image(

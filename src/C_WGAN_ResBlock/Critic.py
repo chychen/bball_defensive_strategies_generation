@@ -176,7 +176,9 @@ class C_MODEL(object):
                 next_input = res_block
                 print(next_input)
             with tf.variable_scope('linear_result') as scope:
-                flatten_ = layers.flatten(next_input)
+                normed = layers.layer_norm(next_input)
+                nonlinear = libs.leaky_relu(normed)
+                flatten_ = layers.flatten(nonlinear)
                 linear_result = layers.fully_connected(
                     inputs=flatten_,
                     num_outputs=1,
