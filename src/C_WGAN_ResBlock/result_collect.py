@@ -29,23 +29,23 @@ FLAGS = tf.app.flags.FLAGS
 
 # path parameters
 # TODO read params from checkpoints directory (hyper_parameters.json)
-tf.app.flags.DEFINE_string('folder_path', 'v34',
+tf.app.flags.DEFINE_string('folder_path', 'v39',
                            "summary directory")
-tf.app.flags.DEFINE_string('data_path', '../../data/F2.npy',
+tf.app.flags.DEFINE_string('data_path', '../../data/FEATURES.npy',
                            "summary directory")
 tf.app.flags.DEFINE_string('restore_path', None,
                            "path of saving model eg: checkpoints/model.ckpt-5")
 # input parameters
 tf.app.flags.DEFINE_integer('seq_length', 100,
                             "the maximum length of one training data")
-tf.app.flags.DEFINE_integer('latent_dims', 10,
+tf.app.flags.DEFINE_integer('latent_dims', 100,
                             "dimensions of latant variable")
 # model parameters
 tf.app.flags.DEFINE_string('gpus', '0',
                            "define visible gpus")
 tf.app.flags.DEFINE_integer('batch_size', 128,
                             "batch size")
-tf.app.flags.DEFINE_integer('number_diff_z', 100,
+tf.app.flags.DEFINE_integer('number_diff_z', 10,
                             "number of different conditions of team A")
 
 # PATH
@@ -59,20 +59,20 @@ os.environ['CUDA_VISIBLE_DEVICES'] = FLAGS.gpus
 
 def z_samples():
     return np.random.normal(
-        0., 1., size=[FLAGS.batch_size, FLAGS.seq_length, FLAGS.latent_dims])
+        0., 1., size=[FLAGS.batch_size, FLAGS.latent_dims])
 
 
 def collecting(data_factory, graph):
     """ collect result
     Saved Result
     ------------
-    results_A : float, numpy ndarray, shape=[number_conds=128, length=100, features_A=13]
+    results_A : float, numpy ndarray, shape=[batch_size=128, length=100, features_A=13]
         conditional constraints of team A position sequence that generate results
-    results_real_B : float, numpy ndarray, shape=[number_conds=128, length=100, features_B=10]
+    results_real_B : float, numpy ndarray, shape=[batch_size=128, length=100, features_B=10]
         original real of team B position sequence, used to compare with fake B
-    results_fake_B : float, numpy ndarray, shape=[number_diff_z=100, number_conds=128, length=100, features_B=10]
+    results_fake_B : float, numpy ndarray, shape=[number_diff_z=100, batch_size=128, length=100, features_B=10]
         generated results
-    results_latent : float, numpy ndarray, shape=[number_diff_z=100, number_conds=128, length=100, latent_dims=10]
+    results_latent : float, numpy ndarray, shape=[number_diff_z=100, batch_size=128, latent_dims=100]
         latent variables that generate the results
 
     Notes
@@ -104,8 +104,10 @@ def collecting(data_factory, graph):
         real_samples = train_data['B'][0:FLAGS.batch_size]
         real_conds = train_data['A'][0:FLAGS.batch_size]
         # generate result
+        latents_base = z_samples()
         for i in range(FLAGS.number_diff_z):
-            latents = z_samples()
+            latents = latents_base
+            latents[:, 0] = -5 + i
             feed_dict = {
                 latent_input_t: latents,
                 team_a_t: real_conds
@@ -136,6 +138,7 @@ def collecting(data_factory, graph):
     print(np.array(results_latent).astype(np.float32).dtype)
     print('!!Completely Saved!!')
 
+
 def weight_vis(graph):
     """ weight_vis
     """
@@ -159,26 +162,23 @@ def weight_vis(graph):
         # target tensor
         theta = __get_var_list('G/linear/weight')
         trace = go.Heatmap(z=sess.run(theta[0]))
-        data=[trace]
+        data = [trace]
         plotly.offline.plot(data, filename='G_linear_weight.html')
 
-        
-        
 
 def main(_):
     with tf.get_default_graph().as_default() as graph:
-        # real_data = np.load(FLAGS.data_path)[:, :FLAGS.seq_length, :, :]
-        # print('real_data.shape', real_data.shape)
-        # # normalize
-        # data_factory = DataFactory(real_data)
-        # train_data, valid_data = data_factory.fetch_data()
-        # print(train_data['A'].shape)
-        # print(valid_data['A'].shape)
-        # # collect
-        # collecting(data_factory, graph)
-        # weight vis
+        real_data = np.load(FLAGS.data_path)[:, :FLAGS.seq_length, :, :]
+        print('real_data.shape', real_data.shape)
+        # normalize
+        data_factory = DataFactory(real_data)
+        train_data, valid_data = data_factory.fetch_data()
+        print(train_data['A'].shape)
+        print(valid_data['A'].shape)
+        # collect
+        collecting(data_factory, graph)
 
-        weight_vis(graph)
+        # weight_vis(graph)
 
 
 if __name__ == '__main__':

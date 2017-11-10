@@ -221,7 +221,7 @@ class G_MODEL(object):
             print('result', result)
             return result
 
-    def __G_loss_fn(self, fake_samples, conds, lambda_=10):
+    def __G_loss_fn(self, fake_samples, conds, lambda_=1e-4):
         """ G loss
         """
         with tf.name_scope('G_loss') as scope:

@@ -23,7 +23,7 @@ FLAGS = tf.app.flags.FLAGS
 tf.app.flags.DEFINE_string('comment', None,
                            "(required) what would you like to test?")
 # path parameters
-tf.app.flags.DEFINE_string('folder_path', 'v38',
+tf.app.flags.DEFINE_string('folder_path', 'v41',
                            "summary directory")
 tf.app.flags.DEFINE_string('data_path', '../../data/FEATURES.npy',
                            "summary directory")

@@ -53,7 +53,7 @@ class G_MODEL(object):
         # IO
         self.critic = critic_inference
         self.__z = tf.placeholder(dtype=tf.float32, shape=[
-            self.batch_size, self.seq_length, self.latent_dims], name='latent_input')
+            self.batch_size, self.latent_dims], name='latent_input')
         self.__cond = tf.placeholder(dtype=tf.float32, shape=[
             self.batch_size, self.seq_length, 13], name='team_a')
         # adversarial learning : wgan
@@ -64,7 +64,7 @@ class G_MODEL(object):
         self.__summary_G_weight_op = tf.summary.merge(
             tf.get_collection('G_weight'))
         self.G_summary_writer = tf.summary.FileWriter(
-            self.log_dir + 'G')
+            self.log_dir + 'G', graph=graph)
 
     def __build_wgan(self):
         with tf.name_scope('WGAN'):
@@ -175,6 +175,8 @@ class G_MODEL(object):
                     biases_initializer=tf.zeros_initializer(),
                     scope=scope
                 )
+            latents_linear = tf.reshape(latents_linear, shape=[
+                                        self.batch_size, 1, 256])
             next_input = tf.add(conds_linear, latents_linear)
             print(next_input)
             # residual block
@@ -198,7 +200,7 @@ class G_MODEL(object):
                 print(conv_result)
             return conv_result
 
-    def __G_loss_fn(self, fake_samples, conds, lambda_=100):
+    def __G_loss_fn(self, fake_samples, conds, lambda_=10):
         """ G loss
         """
         with tf.name_scope('G_loss') as scope:
@@ -208,7 +210,7 @@ class G_MODEL(object):
                 if 'G/latents_linear/weights' in v.name:
                     mean_latents = tf.reduce_mean(tf.abs(v), axis=0)
                     tf.summary.image(
-                        'latents_linear_weight', tf.reshape(v, shape=[1, 10, 256, 1]), max_outputs=1, collections=['G_weight'])
+                        'latents_linear_weight', tf.reshape(v, shape=[1, 100, 256, 1]), max_outputs=1, collections=['G_weight'])
                 if 'G/conds_linear/weights' in v.name:
                     mean_conds = tf.reduce_mean(tf.abs(v), axis=0)
                     tf.summary.image(

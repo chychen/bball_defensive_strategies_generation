@@ -23,7 +23,7 @@ FLAGS = tf.app.flags.FLAGS
 tf.app.flags.DEFINE_string('comment', None,
                            "(required) what would you like to test?")
 # path parameters
-tf.app.flags.DEFINE_string('folder_path', 'v38',
+tf.app.flags.DEFINE_string('folder_path', 'v39',
                            "summary directory")
 tf.app.flags.DEFINE_string('data_path', '../../data/FEATURES.npy',
                            "summary directory")
@@ -32,7 +32,7 @@ tf.app.flags.DEFINE_string('restore_path', None,
 # input parameters
 tf.app.flags.DEFINE_integer('seq_length', 100,
                             "the maximum length of one training data")
-tf.app.flags.DEFINE_integer('latent_dims', 10,
+tf.app.flags.DEFINE_integer('latent_dims', 100,
                             "dimensions of latant variable")
 # training parameters
 tf.app.flags.DEFINE_string('gpus', '0',
@@ -130,7 +130,7 @@ class TrainingConfig(object):
 
 def z_samples():
     return np.random.normal(
-        0., 1., size=[FLAGS.batch_size, FLAGS.seq_length, FLAGS.latent_dims])
+        0., 1., size=[FLAGS.batch_size, FLAGS.latent_dims])
 
 
 def training(train_data, valid_data, data_factory, config, graph):
