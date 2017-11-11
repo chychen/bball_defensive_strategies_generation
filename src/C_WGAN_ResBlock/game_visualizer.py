@@ -139,7 +139,7 @@ if __name__ == '__main__':
     parser.add_argument('--save_path', type=str, default='../../data/',
                         help='string, path to save event animation')
     parser.add_argument('--data_path', type=str,
-                        default='../data/F2.npy', help='string, path of target data')
+                        default='../../data/FEATURES-4.npy', help='string, path of target data')
 
     opt = parser.parse_args()
     test()

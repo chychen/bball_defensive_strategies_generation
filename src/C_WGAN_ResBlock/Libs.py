@@ -28,9 +28,7 @@ def residual_block(name, inputs, n_layers=2, alpha=1.0):
                     padding='same',
                     activation=None,
                     kernel_initializer=layers.xavier_initializer(),
-                    bias_initializer=tf.zeros_initializer(),
-                    reuse=scope.reuse,
-                    name=scope.name
+                    bias_initializer=tf.zeros_initializer()
                 )
                 next_input = conv
         return next_input * alpha + inputs

@@ -28,8 +28,6 @@ class C_MODEL(object):
             * batch_size : mini batch size
             * log_dir : path to save training summary
             * learning_rate : adam's learning rate
-            * hidden_size : number of hidden units in LSTM
-            * rnn_layers : number of stacked LSTM 
             * seq_length : length of LSTM
             * latent_dims : dimensions of latent feature
             * penalty_lambda = gradient penalty's weight, ref from  paper of 'improved-wgan'
@@ -41,13 +39,11 @@ class C_MODEL(object):
         self.batch_size = config.batch_size
         self.log_dir = config.log_dir
         self.learning_rate = config.learning_rate
-        self.hidden_size = config.hidden_size
-        self.rnn_layers = config.rnn_layers
         self.seq_length = config.seq_length
         self.latent_dims = config.latent_dims
         self.penalty_lambda = config.penalty_lambda
-        self.if_log_histogram = config.if_log_histogram
         self.n_resblock = config.n_resblock
+        self.if_handcraft_features = config.if_handcraft_features
         # steps
         self.__global_steps = tf.train.get_or_create_global_step(graph=graph)
         self.__steps = 0
@@ -62,7 +58,7 @@ class C_MODEL(object):
         self.__matched_cond = tf.placeholder(dtype=tf.float32, shape=[
             self.batch_size, self.seq_length, 13], name='matched_cond')
         # adversarial learning : wgan
-        self.__build_wgan()
+        self.__build_model()
 
         # summary
         self.__summary_op = tf.summary.merge(tf.get_collection('C'))
@@ -73,8 +69,8 @@ class C_MODEL(object):
         self.valid_summary_writer = tf.summary.FileWriter(
             self.log_dir + 'C_valid')
 
-    def __build_wgan(self):
-        with tf.name_scope('WGAN'):
+    def __build_model(self):
+        with tf.name_scope('Critic'):
             # inference
             real_scores = self.inference(self.__X, self.__matched_cond)
             fake_scores = self.inference(
@@ -100,27 +96,6 @@ class C_MODEL(object):
             tf.summary.scalar('F_fake', F_fake, collections=['C'])
             tf.summary.scalar('grad_pen', grad_pen, collections=['C'])
 
-    def __summarize(self, name, value, collections, postfix=''):
-        """ Helper to create summaries for activations.
-        Creates a summary that provides a histogram of activations.
-        Creates a summary that measures the sparsity of activations.
-        Args
-        ----
-        name : string
-        value : Tensor
-        collections : list of string
-        postfix : string
-        Returns
-        -------
-            nothing
-        """
-        if self.if_log_histogram:
-            tensor_name = name + '/' + postfix
-            tf.summary.histogram(tensor_name,
-                                 value, collections=collections)
-            # tf.summary.scalar(tensor_name + '/sparsity',
-            #                   tf.nn.zero_fraction(x), collections=collections)
-
     def __get_var_list(self):
         """ to get both Generator's and Discriminator's trainable variables
         and add trainable variables into histogram
@@ -130,12 +105,7 @@ class C_MODEL(object):
         for _, v in enumerate(trainable_V):
             if v.name.startswith('C'):
                 theta.append(v)
-                self.__summarize(v.op.name, v, collections='C',
-                                 postfix='Trainable')
         return theta
-
-    def __leaky_relu(self, features, alpha=0.2):
-        return tf.maximum(features, alpha * features)
 
     def inference(self, inputs, conds, reuse=False):
         """
@@ -150,10 +120,10 @@ class C_MODEL(object):
         score : float
             real(from data) or fake(from G)
         """
-        with tf.variable_scope('C', reuse=reuse):
+        with tf.variable_scope('C_inference', reuse=reuse):
             concat_ = tf.concat([conds, inputs], axis=-1)
-            # # extract hand-crafted feature
-            # concat_input = self.data_factory.extract_features(concat_input)
+            if self.if_handcraft_features:
+                concat_ = self.data_factory.extract_features(concat_)
 
             with tf.variable_scope('conv_input') as scope:
                 conv_input = tf.layers.conv1d(
@@ -164,15 +134,14 @@ class C_MODEL(object):
                     padding='same',
                     activation=libs.leaky_relu,
                     kernel_initializer=layers.xavier_initializer(),
-                    bias_initializer=tf.zeros_initializer(),
-                    reuse=scope.reuse,
-                    name=scope.name
+                    bias_initializer=tf.zeros_initializer()
                 )
                 print(conv_input)
             # residual block
             next_input = conv_input
             for i in range(self.n_resblock):
-                res_block = libs.residual_block('Res' + str(i), next_input)
+                res_block = libs.residual_block(
+                    'Res' + str(i), next_input, n_layers=2)
                 next_input = res_block
                 print(next_input)
             with tf.variable_scope('linear_result') as scope:
@@ -217,17 +186,16 @@ class C_MODEL(object):
     def step(self, sess, G_samples, real_data, conditions):
         """ train one batch on C
         """
-        self.__steps += 1
         feed_dict = {self.__G_samples: G_samples,
                      self.__matched_cond: conditions,
                      self.__X: real_data}
-        loss, global_steps, _ = sess.run(
-            [self.__loss, self.__global_steps, self.__train_op], feed_dict=feed_dict)
-        if not self.if_log_histogram or self.__steps % 500 == 0:  # % 500 to save space
-            summary = sess.run(self.__summary_op, feed_dict=feed_dict)
-            # log
-            self.summary_writer.add_summary(
-                summary, global_step=global_steps)
+        summary, loss, global_steps, _ = sess.run(
+            [self.__summary_op, self.__loss, self.__global_steps, self.__train_op], feed_dict=feed_dict)
+        # log
+        self.summary_writer.add_summary(
+            summary, global_step=global_steps)
+
+        self.__steps += 1
         return loss, global_steps
 
     def log_valid_loss(self, sess, G_samples, real_data, conditions):

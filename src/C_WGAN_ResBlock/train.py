@@ -23,9 +23,9 @@ FLAGS = tf.app.flags.FLAGS
 tf.app.flags.DEFINE_string('comment', None,
                            "(required) what would you like to test?")
 # path parameters
-tf.app.flags.DEFINE_string('folder_path', 'v42',
+tf.app.flags.DEFINE_string('folder_path', 'v1/1/',
                            "summary directory")
-tf.app.flags.DEFINE_string('data_path', '../../data/FEATURES.npy',
+tf.app.flags.DEFINE_string('data_path', '../../data/FEATURES-4.npy',
                            "summary directory")
 tf.app.flags.DEFINE_string('restore_path', None,
                            "path of saving model eg: checkpoints/model.ckpt-5")
@@ -37,28 +37,26 @@ tf.app.flags.DEFINE_integer('latent_dims', 10,
 # training parameters
 tf.app.flags.DEFINE_string('gpus', '0',
                            "define visible gpus")
-tf.app.flags.DEFINE_integer('total_epoches', 5000,
+tf.app.flags.DEFINE_integer('total_epoches', 2000,
                             "num of ephoches")
 tf.app.flags.DEFINE_integer('num_train_D', 5,
                             "num of times of training D before train G")
-tf.app.flags.DEFINE_integer('num_pretrain_D', 0,
+tf.app.flags.DEFINE_integer('num_pretrain_D', 25,
                             "num of ephoch to train D before train G")
-tf.app.flags.DEFINE_integer('freq_train_D', 31,
+tf.app.flags.DEFINE_integer('freq_train_D', 25,
                             "freqence of num ephoch to train D more")
 tf.app.flags.DEFINE_integer('batch_size', 128,
                             "batch size")
 tf.app.flags.DEFINE_float('learning_rate', 1e-4,
                           "learning rate")
-tf.app.flags.DEFINE_integer('hidden_size', 230,
-                            "hidden size of LSTM")
-tf.app.flags.DEFINE_integer('rnn_layers', 2,
-                            "num of layers for rnn")
 tf.app.flags.DEFINE_float('penalty_lambda', 10.0,
                           "regularization parameter of wGAN loss function")
-tf.app.flags.DEFINE_float('latent_penalty_lambda', 10.0,
+tf.app.flags.DEFINE_float('latent_penalty_lambda', 1e-2,
                           "regularization for latent's weight")
-tf.app.flags.DEFINE_integer('n_resblock', 5,
+tf.app.flags.DEFINE_integer('n_resblock', 4,
                             "number of resblock for Generator and Critic")
+tf.app.flags.DEFINE_bool('if_handcraft_features', False,
+                         "if_handcraft_features")
 # logging
 tf.app.flags.DEFINE_integer('save_model_freq', 100,
                             "num of epoches to save model")
@@ -66,8 +64,6 @@ tf.app.flags.DEFINE_integer('save_result_freq', 30,
                             "num of epoches to save gif")
 tf.app.flags.DEFINE_integer('log_freq', 1000,
                             "num of steps to log")
-tf.app.flags.DEFINE_bool('if_log_histogram', False,
-                         "whether to log histogram or not")
 
 # PATH
 LOG_PATH = os.path.join(FLAGS.folder_path, 'log/')
@@ -91,8 +87,6 @@ class TrainingConfig(object):
         self.sample_dir = SAMPLE_PATH
         self.data_path = FLAGS.data_path
         self.learning_rate = FLAGS.learning_rate
-        self.hidden_size = FLAGS.hidden_size
-        self.rnn_layers = FLAGS.rnn_layers
         self.save_model_freq = FLAGS.save_model_freq
         self.save_result_freq = FLAGS.save_result_freq
         self.log_freq = FLAGS.log_freq
@@ -103,13 +97,14 @@ class TrainingConfig(object):
         self.num_train_D = FLAGS.num_train_D
         self.num_pretrain_D = FLAGS.num_pretrain_D
         self.freq_train_D = FLAGS.freq_train_D
-        self.if_log_histogram = FLAGS.if_log_histogram
         self.n_resblock = FLAGS.n_resblock
+        self.if_handcraft_features = FLAGS.if_handcraft_features
         with open(os.path.join(FLAGS.folder_path, 'hyper_parameters.json'), 'w') as outfile:
             json.dump(FLAGS.__dict__['__flags'], outfile)
 
     def show(self):
         print(FLAGS.__dict__['__flags'])
+
 
 def z_samples():
     return np.random.normal(
@@ -153,7 +148,7 @@ def training(train_data, valid_data, data_factory, config, graph):
             while batch_id < num_batches - FLAGS.num_train_D:
                 real_data_batch = None
                 if epoch_id < FLAGS.num_pretrain_D or (epoch_id + 1) % FLAGS.freq_train_D == 0:
-                    num_train_D = num_batches * 5  # TODO
+                    num_train_D = num_batches
                 else:
                     num_train_D = FLAGS.num_train_D
                 for id_ in range(num_train_D):

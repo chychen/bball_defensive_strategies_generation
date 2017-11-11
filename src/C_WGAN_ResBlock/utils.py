@@ -201,12 +201,6 @@ class DataFactory(object):
 
 def testing_real():
     pass
-    # real_data = np.load("../data/FEATURES.npy")
-    # print('real_data.shape', real_data.shape)
-    # data_ = DataFactory(real_data)
-    # real_data = normer.get_normed_data()
-    # print('real_data.shape', real_data.shape)
-
 
 if __name__ == '__main__':
     testing_real()

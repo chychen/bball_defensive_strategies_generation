@@ -128,42 +128,34 @@ def collecting(data_factory, graph):
             np.array(results_fake_B).astype(np.float32))
     np.save(COLLECT_PATH + 'results_latent.npy',
             np.array(results_latent).astype(np.float32))
-    print(results_A.astype(np.float32).shape)
-    print(results_real_B.astype(np.float32).shape)
-    print(np.array(results_fake_B).astype(np.float32).shape)
-    print(np.array(results_latent).astype(np.float32).shape)
-    print(results_A.astype(np.float32).dtype)
-    print(results_real_B.astype(np.float32).dtype)
-    print(np.array(results_fake_B).astype(np.float32).dtype)
-    print(np.array(results_latent).astype(np.float32).dtype)
     print('!!Completely Saved!!')
 
 
-def weight_vis(graph):
-    """ weight_vis
-    """
-    def __get_var_list(tag):
-        """ to get both Generator's and Discriminator's trainable variables
-        and add trainable variables into histogram
-        """
-        trainable_V = tf.trainable_variables()
-        theta = []
-        for _, v in enumerate(trainable_V):
-            if tag in v.name:
-                theta.append(v)
-        return theta
-    # sesstion config
-    config = tf.ConfigProto()
-    config.gpu_options.allow_growth = True
-    saver = tf.train.import_meta_graph(FLAGS.restore_path + '.meta')
-    with tf.Session(config=config) as sess:
-        # restored
-        saver.restore(sess, FLAGS.restore_path)
-        # target tensor
-        theta = __get_var_list('G/linear/weight')
-        trace = go.Heatmap(z=sess.run(theta[0]))
-        data = [trace]
-        plotly.offline.plot(data, filename='G_linear_weight.html')
+# def weight_vis(graph):
+#     """ weight_vis
+#     """
+#     def __get_var_list(tag):
+#         """ to get both Generator's and Discriminator's trainable variables
+#         and add trainable variables into histogram
+#         """
+#         trainable_V = tf.trainable_variables()
+#         theta = []
+#         for _, v in enumerate(trainable_V):
+#             if tag in v.name:
+#                 theta.append(v)
+#         return theta
+#     # sesstion config
+#     config = tf.ConfigProto()
+#     config.gpu_options.allow_growth = True
+#     saver = tf.train.import_meta_graph(FLAGS.restore_path + '.meta')
+#     with tf.Session(config=config) as sess:
+#         # restored
+#         saver.restore(sess, FLAGS.restore_path)
+#         # target tensor
+#         theta = __get_var_list('G/linear/weight')
+#         trace = go.Heatmap(z=sess.run(theta[0]))
+#         data = [trace]
+#         plotly.offline.plot(data, filename='G_linear_weight.html')
 
 
 def main(_):
