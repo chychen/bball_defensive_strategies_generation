@@ -42,7 +42,6 @@ class G_MODEL(object):
         self.latent_dims = config.latent_dims
         self.penalty_lambda = config.penalty_lambda
         self.latent_penalty_lambda = config.latent_penalty_lambda
-        self.if_log_histogram = config.if_log_histogram
         self.n_resblock = config.n_resblock
         # steps
         self.__global_steps = tf.train.get_or_create_global_step(graph=graph)
@@ -78,9 +77,6 @@ class G_MODEL(object):
                 self.__G_train_op = G_optimizer.apply_gradients(
                     grads_and_vars=G_grads, global_step=self.__global_steps)
             # logging
-            for grad, var in G_grads:
-                self.__summarize(var.name, grad, collections='G',
-                                 postfix='gradient')
             tf.summary.scalar('G_loss', self.__G_loss, collections=['G'])
             tf.summary.scalar('G_penalty_latents_w',
                               self.__G_penalty_latents_w, collections=['G'])
@@ -162,19 +158,19 @@ class G_MODEL(object):
             # penalize if network no use latent variables
             trainable_V = tf.trainable_variables()
             for v in trainable_V:
-                if 'G/latents_linear/weights' in v.name:
+                if 'G_inference/latents_linear/weights' in v.name:
                     mean_latents = tf.reduce_mean(tf.abs(v), axis=0)
                     tf.summary.image(
                         'latents_linear_weight', tf.reshape(v, shape=[1, self.latent_dims, 256, 1]), max_outputs=1, collections=['G_weight'])
-                if 'G/conds_linear/weights' in v.name:
+                if 'G_inference/conds_linear/weights' in v.name:
                     mean_conds = tf.reduce_mean(tf.abs(v), axis=0)
                     tf.summary.image(
                         'conds_linear_weight', tf.reshape(v, shape=[1, 13, 256, 1]), max_outputs=1, collections=['G_weight'])
-            penalty_latents_w = lambda_ * tf.reduce_sum(
+            penalty_latents_w = tf.reduce_mean(
                 tf.abs(mean_latents - mean_conds))
             loss = - \
                 tf.reduce_mean(self.critic(fake_samples, conds,
-                                           reuse=True)) + penalty_latents_w
+                                           reuse=True)) + lambda_ * penalty_latents_w
         return loss, penalty_latents_w
 
     def step(self, sess, latent_inputs, conditions):

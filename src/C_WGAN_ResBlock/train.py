@@ -23,7 +23,7 @@ FLAGS = tf.app.flags.FLAGS
 tf.app.flags.DEFINE_string('comment', None,
                            "(required) what would you like to test?")
 # path parameters
-tf.app.flags.DEFINE_string('folder_path', 'v1/1/',
+tf.app.flags.DEFINE_string('folder_path', None,
                            "summary directory")
 tf.app.flags.DEFINE_string('data_path', '../../data/FEATURES-4.npy',
                            "summary directory")
@@ -51,7 +51,7 @@ tf.app.flags.DEFINE_float('learning_rate', 1e-4,
                           "learning rate")
 tf.app.flags.DEFINE_float('penalty_lambda', 10.0,
                           "regularization parameter of wGAN loss function")
-tf.app.flags.DEFINE_float('latent_penalty_lambda', 1e-2,
+tf.app.flags.DEFINE_float('latent_penalty_lambda', 1e-1,
                           "regularization for latent's weight")
 tf.app.flags.DEFINE_integer('n_resblock', 4,
                             "number of resblock for Generator and Critic")
@@ -239,6 +239,7 @@ def main(_):
 
 if __name__ == '__main__':
     assert FLAGS.comment is not None, 'comment is required, please add it by --comment'
+    assert FLAGS.folder_path is not None, 'folder_path is required, please add it by --folder_path'
     if FLAGS.restore_path is None:
         # when not restore, remove follows (old) for new training
         if os.path.exists(FLAGS.folder_path):

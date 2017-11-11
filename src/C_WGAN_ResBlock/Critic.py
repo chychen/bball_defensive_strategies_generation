@@ -87,9 +87,6 @@ class C_MODEL(object):
                 self.__train_op = C_optimizer.apply_gradients(
                     grads_and_vars=grads, global_step=self.__global_steps)
             # logging
-            for grad, var in grads:
-                self.__summarize(var.name, grad, collections='C',
-                                 postfix='gradient')
             tf.summary.scalar('C_loss', self.__loss,
                               collections=['C', 'C_valid'])
             tf.summary.scalar('F_real', F_real, collections=['C'])
@@ -204,11 +201,9 @@ class C_MODEL(object):
         feed_dict = {self.__G_samples: G_samples,
                      self.__matched_cond: conditions,
                      self.__X: real_data}
-        loss, global_steps = sess.run(
-            [self.__loss, self.__global_steps], feed_dict=feed_dict)
-        if not self.if_log_histogram or self.__steps % 500 == 0:  # % 500 to save space
-            summary = sess.run(self.__summary_valid_op, feed_dict=feed_dict)
-            # log
-            self.valid_summary_writer.add_summary(
-                summary, global_step=global_steps)
+        summary, loss, global_steps = sess.run(
+            [self.__summary_valid_op, self.__loss, self.__global_steps], feed_dict=feed_dict)
+        # log
+        self.valid_summary_writer.add_summary(
+            summary, global_step=global_steps)
         return loss
