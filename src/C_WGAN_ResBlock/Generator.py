@@ -45,7 +45,7 @@ class G_MODEL(object):
         self.n_resblock = config.n_resblock
         # steps
         self.__global_steps = tf.train.get_or_create_global_step(graph=graph)
-        self.__G_steps = 0
+        self.__steps = 0
         # IO
         self.critic = critic_inference
         self.__z = tf.placeholder(dtype=tf.float32, shape=[
@@ -56,30 +56,35 @@ class G_MODEL(object):
         self.__build_model()
 
         # summary
-        self.__summary_G_op = tf.summary.merge(tf.get_collection('G'))
-        self.__summary_G_weight_op = tf.summary.merge(
+        self.__summary_op = tf.summary.merge(tf.get_collection('G'))
+        self.__summary_histogram_op = tf.summary.merge(
+            tf.get_collection('G_histogram'))
+        self.__summary_weight_op = tf.summary.merge(
             tf.get_collection('G_weight'))
-        self.G_summary_writer = tf.summary.FileWriter(
+        self.summary_writer = tf.summary.FileWriter(
             self.log_dir + 'G', graph=graph)
 
     def __build_model(self):
         with tf.name_scope('Generator'):
             self.__G_sample = self.__G(self.__z, self.__cond)
             # loss function
-            self.__G_loss, self.__G_penalty_latents_w = self.__G_loss_fn(
+            self.__loss, self.__penalty_latents_w = self.__G_loss_fn(
                 self.__G_sample, self.__cond, lambda_=self.latent_penalty_lambda)
-            with tf.name_scope('G_optimizer') as scope:
-                theta_G = self.__get_var_list('G')
-                G_optimizer = tf.train.AdamOptimizer(
+            with tf.name_scope('optimizer') as scope:
+                theta = self.__get_var_list('G')
+                optimizer = tf.train.AdamOptimizer(
                     learning_rate=self.learning_rate, beta1=0.5, beta2=0.9)
-                G_grads = tf.gradients(self.__G_loss, theta_G)
-                G_grads = list(zip(G_grads, theta_G))
-                self.__G_train_op = G_optimizer.apply_gradients(
-                    grads_and_vars=G_grads, global_step=self.__global_steps)
+                grads = tf.gradients(self.__loss, theta)
+                grads = list(zip(grads, theta))
+                self.__train_op = optimizer.apply_gradients(
+                    grads_and_vars=grads, global_step=self.__global_steps)
+            for grad, var in grads:
+                tf.summary.histogram(
+                    var.name, grad, collections=['G_histogram'])
             # logging
-            tf.summary.scalar('G_loss', self.__G_loss, collections=['G'])
+            tf.summary.scalar('G_loss', self.__loss, collections=['G'])
             tf.summary.scalar('G_penalty_latents_w',
-                              self.__G_penalty_latents_w, collections=['G'])
+                              self.__penalty_latents_w, collections=['G'])
 
     def __get_var_list(self, prefix):
         """ to get both Generator's trainable variables and add trainable variables into histogram
@@ -89,6 +94,8 @@ class G_MODEL(object):
         for _, v in enumerate(trainable_V):
             if v.name.startswith(prefix):
                 theta.append(v)
+                tf.summary.histogram(v.name,
+                                     v, collections=['G_histogram'])
         return theta
 
     def __G(self, latents, conds):
@@ -178,17 +185,20 @@ class G_MODEL(object):
         """
         feed_dict = {self.__z: latent_inputs, self.__cond: conditions}
         summary, loss, global_steps, _ = sess.run(
-            [self.__summary_G_op, self.__G_loss, self.__global_steps,
-                self.__G_train_op], feed_dict=feed_dict)
+            [self.__summary_op, self.__loss, self.__global_steps,
+                self.__train_op], feed_dict=feed_dict)
         # log
-        self.G_summary_writer.add_summary(
+        self.summary_writer.add_summary(
             summary, global_step=global_steps)
-        if self.__G_steps % 200 == 0:
-            summary = sess.run(self.__summary_G_weight_op, feed_dict=feed_dict)
-            self.G_summary_writer.add_summary(
+        if self.__steps % 200 == 0:
+            summary, summary_trainable = sess.run(
+                [self.__summary_weight_op, self.__summary_histogram_op], feed_dict=feed_dict)
+            self.summary_writer.add_summary(
                 summary, global_step=global_steps)
+            self.summary_writer.add_summary(
+                summary_trainable, global_step=global_steps)
 
-        self.__G_steps += 1
+        self.__steps += 1
         return loss, global_steps
 
     def generate(self, sess, latent_inputs, conditions):

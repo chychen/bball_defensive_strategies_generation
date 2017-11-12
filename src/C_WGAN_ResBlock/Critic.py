@@ -62,6 +62,8 @@ class C_MODEL(object):
 
         # summary
         self.__summary_op = tf.summary.merge(tf.get_collection('C'))
+        self.__summary_histogram_op = tf.summary.merge(
+            tf.get_collection('C_histogram'))
         self.__summary_valid_op = tf.summary.merge(
             tf.get_collection('C_valid'))
         self.summary_writer = tf.summary.FileWriter(
@@ -79,18 +81,23 @@ class C_MODEL(object):
             self.__loss, F_real, F_fake, grad_pen = self.__loss_fn(
                 self.__X, self.__G_samples, fake_scores, real_scores, self.penalty_lambda)
             theta = self.__get_var_list()
-            with tf.name_scope('C_optimizer') as scope:
-                C_optimizer = tf.train.AdamOptimizer(
+            with tf.name_scope('optimizer') as scope:
+                optimizer = tf.train.AdamOptimizer(
                     learning_rate=self.learning_rate, beta1=0.5, beta2=0.9)
                 grads = tf.gradients(self.__loss, theta)
                 grads = list(zip(grads, theta))
-                self.__train_op = C_optimizer.apply_gradients(
+                self.__train_op = optimizer.apply_gradients(
                     grads_and_vars=grads, global_step=self.__global_steps)
+            for grad, var in grads:
+                tf.summary.histogram(
+                    var.name, grad, collections=['C_histogram'])
             # logging
             tf.summary.scalar('C_loss', self.__loss,
                               collections=['C', 'C_valid'])
             tf.summary.scalar('F_real', F_real, collections=['C'])
             tf.summary.scalar('F_fake', F_fake, collections=['C'])
+            tf.summary.scalar('F_real-F_fake', F_real -
+                              F_fake, collections=['C'])
             tf.summary.scalar('grad_pen', grad_pen, collections=['C'])
 
     def __get_var_list(self):
@@ -191,6 +198,11 @@ class C_MODEL(object):
         # log
         self.summary_writer.add_summary(
             summary, global_step=global_steps)
+        if self.__steps % 1000 == 0:
+            summary_histogram = sess.run(
+                self.__summary_histogram_op, feed_dict=feed_dict)
+            self.summary_writer.add_summary(
+                summary_histogram, global_step=global_steps)
 
         self.__steps += 1
         return loss, global_steps
