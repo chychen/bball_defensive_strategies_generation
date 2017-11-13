@@ -31,7 +31,7 @@ FLAGS = tf.app.flags.FLAGS
 # TODO read params from checkpoints directory (hyper_parameters.json)
 tf.app.flags.DEFINE_string('folder_path', 'v1/3',
                            "summary directory")
-tf.app.flags.DEFINE_string('data_path', '../../data/FEATURES.npy',
+tf.app.flags.DEFINE_string('data_path', '../../data/FEATURES-4.npy',
                            "summary directory")
 tf.app.flags.DEFINE_string('restore_path', None,
                            "path of saving model eg: checkpoints/model.ckpt-5")
@@ -45,7 +45,7 @@ tf.app.flags.DEFINE_string('gpus', '0',
                            "define visible gpus")
 tf.app.flags.DEFINE_integer('batch_size', 256,
                             "batch size")
-tf.app.flags.DEFINE_integer('number_diff_z', 10,
+tf.app.flags.DEFINE_integer('number_diff_z', 100,
                             "number of different conditions of team A")
 
 COLLECT_PATH = os.path.join(FLAGS.folder_path, 'collect/')
@@ -108,10 +108,11 @@ def collecting(data_factory, graph):
         real_samples = train_data['B'][0:FLAGS.batch_size]
         real_conds = train_data['A'][0:FLAGS.batch_size]
         # generate result
-        latents_base = z_samples()
+        # latents_base = z_samples()
         for i in range(FLAGS.number_diff_z):
-            latents = latents_base
-            latents[:, 0] = -5 + i
+            # latents = latents_base
+            # latents[:, 0] = -5 + i
+            latents = z_samples()
             feed_dict = {
                 latent_input_t: latents,
                 team_a_t: real_conds,
@@ -135,11 +136,10 @@ def collecting(data_factory, graph):
     np.save(COLLECT_PATH + 'results_fake_B.npy',
             np.array(results_fake_B).astype(np.float32))
     np.save(COLLECT_PATH + 'results_critic_scores.npy',
-            np.array(results_critic_scores).astype(np.float32).reshape([10, 256]))
-            # np.array(results_critic_scores).astype(np.float32))
+            np.array(results_critic_scores).astype(np.float32).reshape([FLAGS.number_diff_z, FLAGS.batch_size]))
+    # np.array(results_critic_scores).astype(np.float32))
     np.save(COLLECT_PATH + 'results_latent.npy',
             np.array(results_latent).astype(np.float32))
-    print(np.array(results_critic_scores).astype(np.float32).reshape([10, 256]).shape)
     print('!!Completely Saved!!')
 
 

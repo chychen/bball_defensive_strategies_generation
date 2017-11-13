@@ -99,7 +99,7 @@ def plot_data(data, length, file_path=None, if_save=False, fps=4, dpi=128):
     if if_save:
         anim.save(file_path, fps=fps,
                   dpi=dpi, writer='imagemagick')
-        print('!!!gif animation is saved!!!')
+        print('!!!Animation is saved!!!')
     else:
         plt.show()
         print('!!!End!!!')
