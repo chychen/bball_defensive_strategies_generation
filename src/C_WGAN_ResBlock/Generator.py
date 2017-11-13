@@ -70,10 +70,10 @@ class G_MODEL(object):
         with tf.name_scope('Generator'):
             self.__G_sample = self.__G(self.__z, self.__cond)
             # loss function
-            self.__loss, self.__penalty_latents_w = self.__G_loss_fn(
+            self.__loss, self.__penalty_latents_w, self.__critic_scores = self.__G_loss_fn(
                 self.__G_sample, self.__cond, lambda_=self.latent_penalty_lambda)
+            theta = libs.get_var_list('G')
             with tf.name_scope('optimizer') as scope:
-                theta = libs.get_var_list('G')
                 optimizer = tf.train.AdamOptimizer(
                     learning_rate=self.learning_rate, beta1=0.5, beta2=0.9)
                 grads = tf.gradients(self.__loss, theta)
@@ -180,10 +180,10 @@ class G_MODEL(object):
                         'conds_linear_weight', tf.reshape(v, shape=[1, shape_[0], shape_[1], 1]), max_outputs=1, collections=['G_weight'])
             penalty_latents_w = tf.reduce_mean(
                 tf.abs(mean_latents - mean_conds))
+            critic_scores = self.critic(fake_samples, conds, reuse=True)
             loss = - \
-                tf.reduce_mean(self.critic(fake_samples, conds,
-                                           reuse=True)) + lambda_ * penalty_latents_w
-        return loss, penalty_latents_w
+                tf.reduce_mean(critic_scores) + lambda_ * penalty_latents_w
+        return loss, penalty_latents_w, critic_scores
 
     def step(self, sess, latent_inputs, conditions):
         """ train one batch on G
@@ -208,7 +208,15 @@ class G_MODEL(object):
 
     def generate(self, sess, latent_inputs, conditions):
         """ to generate result
+        
+        Returns
+        -------
+        result : float32, shape=[batch_size, 10]
+            positions b team's players 
+        critic_scores : float32, shape=[batch_size]
+            each data get one score from critic net, the higher the better!
         """
         feed_dict = {self.__z: latent_inputs, self.__cond: conditions}
-        result = sess.run(self.__G_sample, feed_dict=feed_dict)
-        return result
+        result, critic_scores = sess.run(
+            [self.__G_sample, self.__critic_scores], feed_dict=feed_dict)
+        return result, critic_scores

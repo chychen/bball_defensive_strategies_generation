@@ -165,7 +165,7 @@ def training(train_data, valid_data, data_factory, config, graph):
                     real_conds = train_data['A'][data_idx:data_idx +
                                                  FLAGS.batch_size]
                     # samples
-                    fake_samples = G.generate(
+                    fake_samples, _ = G.generate(
                         sess, z_samples(), real_conds)
                     # train Critic
                     D_loss_mean, global_steps = C.step(
@@ -181,7 +181,7 @@ def training(train_data, valid_data, data_factory, config, graph):
                                                          FLAGS.batch_size]
                     valid_real_conds = valid_data['A'][data_idx:data_idx +
                                                        FLAGS.batch_size]
-                    fake_samples = G.generate(
+                    fake_samples, _ = G.generate(
                         sess, z_samples(), valid_real_conds)
                     D_valid_loss_mean = C.log_valid_loss(
                         sess, fake_samples, valid_real_samples, valid_real_conds)
@@ -212,7 +212,7 @@ def training(train_data, valid_data, data_factory, config, graph):
             # plot generated sample
             if (epoch_id % FLAGS.save_result_freq) == 0 or epoch_id == FLAGS.total_epoches - 1:
                 # fake
-                samples = G.generate(sess, z_samples(), real_conds)
+                samples, _ = G.generate(sess, z_samples(), real_conds)
                 concat_ = np.concatenate([real_conds, samples], axis=-1)
                 fake_result = data_factory.recover_data(concat_)
                 game_visualizer.plot_data(

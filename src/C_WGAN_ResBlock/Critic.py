@@ -88,9 +88,9 @@ class C_MODEL(object):
                 grads = list(zip(grads, theta))
                 self.__train_op = optimizer.apply_gradients(
                     grads_and_vars=grads, global_step=self.__global_steps)
-            for grad, var in grads:
+            for grad, _ in grads:
                 tf.summary.histogram(
-                    var.name, grad, collections=['C_histogram'])
+                    grad.name, grad, collections=['C_histogram'])
             # logging
             tf.summary.scalar('C_loss', self.__loss,
                               collections=['C', 'C_valid'])
@@ -150,6 +150,7 @@ class C_MODEL(object):
                     biases_initializer=tf.zeros_initializer(),
                     scope=scope
                 )
+                linear_result = tf.reshape(linear_result, shape=[self.batch_size])
                 print(linear_result)
             return linear_result
 

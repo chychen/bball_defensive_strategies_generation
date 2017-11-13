@@ -43,5 +43,5 @@ def get_var_list(prefix):
         if v.name.startswith(prefix):
             theta.append(v)
             tf.summary.histogram(v.name,
-                                 v, collections=['G_histogram'])
+                                 v, collections=[prefix + '_histogram'])
     return theta
