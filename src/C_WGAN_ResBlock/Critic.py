@@ -80,7 +80,7 @@ class C_MODEL(object):
             # loss function
             self.__loss, F_real, F_fake, grad_pen = self.__loss_fn(
                 self.__X, self.__G_samples, fake_scores, real_scores, self.penalty_lambda)
-            theta = self.__get_var_list()
+            theta = libs.get_var_list('C')
             with tf.name_scope('optimizer') as scope:
                 optimizer = tf.train.AdamOptimizer(
                     learning_rate=self.learning_rate, beta1=0.5, beta2=0.9)
@@ -99,17 +99,6 @@ class C_MODEL(object):
             tf.summary.scalar('F_real-F_fake', F_real -
                               F_fake, collections=['C'])
             tf.summary.scalar('grad_pen', grad_pen, collections=['C'])
-
-    def __get_var_list(self):
-        """ to get both Generator's and Discriminator's trainable variables
-        and add trainable variables into histogram
-        """
-        trainable_V = tf.trainable_variables()
-        theta = []
-        for _, v in enumerate(trainable_V):
-            if v.name.startswith('C'):
-                theta.append(v)
-        return theta
 
     def inference(self, inputs, conds, reuse=False):
         """

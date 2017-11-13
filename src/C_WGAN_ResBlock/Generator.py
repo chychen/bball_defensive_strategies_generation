@@ -73,32 +73,20 @@ class G_MODEL(object):
             self.__loss, self.__penalty_latents_w = self.__G_loss_fn(
                 self.__G_sample, self.__cond, lambda_=self.latent_penalty_lambda)
             with tf.name_scope('optimizer') as scope:
-                theta = self.__get_var_list('G')
+                theta = libs.get_var_list('G')
                 optimizer = tf.train.AdamOptimizer(
                     learning_rate=self.learning_rate, beta1=0.5, beta2=0.9)
                 grads = tf.gradients(self.__loss, theta)
                 grads = list(zip(grads, theta))
                 self.__train_op = optimizer.apply_gradients(
                     grads_and_vars=grads, global_step=self.__global_steps)
-            for grad, var in grads:
+            for grad, _ in grads:
                 tf.summary.histogram(
-                    var.name, grad, collections=['G_histogram'])
+                    grad.name, grad, collections=['G_histogram'])
             # logging
             tf.summary.scalar('G_loss', self.__loss, collections=['G'])
             tf.summary.scalar('G_penalty_latents_w',
                               self.__penalty_latents_w, collections=['G'])
-
-    def __get_var_list(self, prefix):
-        """ to get both Generator's trainable variables and add trainable variables into histogram
-        """
-        trainable_V = tf.trainable_variables()
-        theta = []
-        for _, v in enumerate(trainable_V):
-            if v.name.startswith(prefix):
-                theta.append(v)
-                tf.summary.histogram(v.name,
-                                     v, collections=['G_histogram'])
-        return theta
 
     def __G(self, latents, conds):
         """
@@ -182,12 +170,14 @@ class G_MODEL(object):
             for v in trainable_V:
                 if 'G_inference/latents_linear/weights' in v.name:
                     mean_latents = tf.reduce_mean(tf.abs(v), axis=0)
+                    shape_ = v.get_shape().as_list()
                     tf.summary.image(
-                        'latents_linear_weight', tf.reshape(v, shape=[1, self.latent_dims, 256, 1]), max_outputs=1, collections=['G_weight'])
+                        'latents_linear_weight', tf.reshape(v, shape=[1, shape_[0], shape_[1], 1]), max_outputs=1, collections=['G_weight'])
                 if 'G_inference/conds_linear/weights' in v.name:
                     mean_conds = tf.reduce_mean(tf.abs(v), axis=0)
+                    shape_ = v.get_shape().as_list()
                     tf.summary.image(
-                        'conds_linear_weight', tf.reshape(v, shape=[1, 17, 256, 1]), max_outputs=1, collections=['G_weight'])
+                        'conds_linear_weight', tf.reshape(v, shape=[1, shape_[0], shape_[1], 1]), max_outputs=1, collections=['G_weight'])
             penalty_latents_w = tf.reduce_mean(
                 tf.abs(mean_latents - mean_conds))
             loss = - \

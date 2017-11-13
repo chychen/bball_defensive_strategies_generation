@@ -32,3 +32,16 @@ def residual_block(name, inputs, n_layers=2, alpha=1.0):
                 )
                 next_input = conv
         return next_input * alpha + inputs
+
+
+def get_var_list(prefix):
+    """ to get both Generator's trainable variables and add trainable variables into histogram
+    """
+    trainable_V = tf.trainable_variables()
+    theta = []
+    for _, v in enumerate(trainable_V):
+        if v.name.startswith(prefix):
+            theta.append(v)
+            tf.summary.histogram(v.name,
+                                 v, collections=['G_histogram'])
+    return theta
