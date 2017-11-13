@@ -34,6 +34,7 @@ class G_MODEL(object):
         graph : 
             tensorflow default graph
         """
+        self.data_factory = DataFactory()
         # hyper-parameters
         self.batch_size = config.batch_size
         self.log_dir = config.log_dir
@@ -43,6 +44,7 @@ class G_MODEL(object):
         self.penalty_lambda = config.penalty_lambda
         self.latent_penalty_lambda = config.latent_penalty_lambda
         self.n_resblock = config.n_resblock
+        self.if_feed_extra_info = config.if_feed_extra_info
         # steps
         self.__global_steps = tf.train.get_or_create_global_step(graph=graph)
         self.__steps = 0
@@ -113,9 +115,22 @@ class G_MODEL(object):
             generative result (team b)
         """
         with tf.variable_scope('G_inference'):  # init
+            input_ = conds
+            if self.if_feed_extra_info:
+                with tf.name_scope('concat_info'):
+                    left_x = tf.constant(self.data_factory.BASKET_LEFT[0], dtype=tf.float32, shape=[
+                        self.batch_size, self.seq_length, 1])
+                    left_y = tf.constant(self.data_factory.BASKET_LEFT[1], dtype=tf.float32, shape=[
+                        self.batch_size, self.seq_length, 1])
+                    right_x = tf.constant(self.data_factory.BASKET_RIGHT[0], dtype=tf.float32, shape=[
+                        self.batch_size, self.seq_length, 1])
+                    right_y = tf.constant(self.data_factory.BASKET_RIGHT[1], dtype=tf.float32, shape=[
+                        self.batch_size, self.seq_length, 1])
+                    input_ = tf.concat(
+                        [left_x, left_y, right_x, right_y, conds], axis=-1)
             with tf.variable_scope('conds_linear') as scope:
                 conds_linear = layers.fully_connected(
-                    inputs=conds,
+                    inputs=input_,
                     num_outputs=256,
                     activation_fn=None,
                     weights_initializer=layers.xavier_initializer(
@@ -172,7 +187,7 @@ class G_MODEL(object):
                 if 'G_inference/conds_linear/weights' in v.name:
                     mean_conds = tf.reduce_mean(tf.abs(v), axis=0)
                     tf.summary.image(
-                        'conds_linear_weight', tf.reshape(v, shape=[1, 13, 256, 1]), max_outputs=1, collections=['G_weight'])
+                        'conds_linear_weight', tf.reshape(v, shape=[1, 17, 256, 1]), max_outputs=1, collections=['G_weight'])
             penalty_latents_w = tf.reduce_mean(
                 tf.abs(mean_latents - mean_conds))
             loss = - \

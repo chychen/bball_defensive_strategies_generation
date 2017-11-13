@@ -33,8 +33,8 @@ class DataFactory(object):
         """
         if real_data is not None:
             self.__real_data = real_data
-            self.__basket_left = [4, 25]
-            self.__basket_right = [90, 25]
+            self.BASKET_LEFT = [4, 25]
+            self.BASKET_RIGHT = [90, 25]
             # position normalization
             self.__norm_dict = self.__normalize_pos()
             # make training data ready
@@ -83,9 +83,9 @@ class DataFactory(object):
             t_correlation = []
             for axis_ in range(2):
                 t_basket_l = tf.ones(
-                    shape=[t_shape[0], t_shape[1], 1]) * self.__basket_left[axis_]
+                    shape=[t_shape[0], t_shape[1], 1]) * self.BASKET_LEFT[axis_]
                 t_basket_r = tf.ones(
-                    shape=[t_shape[0], t_shape[1], 1]) * self.__basket_right[axis_]
+                    shape=[t_shape[0], t_shape[1], 1]) * self.BASKET_RIGHT[axis_]
                 t_x = tf.concat([t_pos[:, :, 0 + axis_:1 + axis_],
                                  t_pos[:, :, 3 + axis_::2], t_basket_l, t_basket_r], axis=2)
                 for i in range(13):
@@ -189,10 +189,10 @@ class DataFactory(object):
                     self.__real_data[:, :, :, i])
                 self.__real_data[:, :, :, i] = (
                     self.__real_data[:, :, :, i] - mean_) / stddev_
-                self.__basket_left[i] = (
-                    self.__basket_left[i] - mean_) / stddev_
-                self.__basket_right[i] = (
-                    self.__basket_right[i] - mean_) / stddev_
+                self.BASKET_LEFT[i] = (
+                    self.BASKET_LEFT[i] - mean_) / stddev_
+                self.BASKET_RIGHT[i] = (
+                    self.BASKET_RIGHT[i] - mean_) / stddev_
                 norm_dict[axis_] = {}
                 norm_dict[axis_]['mean'] = mean_
                 norm_dict[axis_]['stddev'] = stddev_
