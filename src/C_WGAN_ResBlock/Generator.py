@@ -80,9 +80,9 @@ class G_MODEL(object):
                 grads = list(zip(grads, theta))
                 self.__train_op = optimizer.apply_gradients(
                     grads_and_vars=grads, global_step=self.__global_steps)
-            for grad, _ in grads:
+            for grad, var in grads:
                 tf.summary.histogram(
-                    grad.name, grad, collections=['G_histogram'])
+                    var.name + '_gradient', grad, collections=['G_histogram'])
             # logging
             tf.summary.scalar('G_loss', self.__loss, collections=['G'])
             tf.summary.scalar('G_penalty_latents_w',
@@ -139,12 +139,12 @@ class G_MODEL(object):
             latents_linear = tf.reshape(latents_linear, shape=[
                                         self.batch_size, 1, 256])
             next_input = tf.add(conds_linear, latents_linear)
-            print(next_input)
+            # print(next_input)
             # residual block
             for i in range(self.n_resblock):
                 res_block = libs.residual_block('Res' + str(i), next_input)
                 next_input = res_block
-                print(next_input)
+                # print(next_input)
             with tf.variable_scope('conv_result') as scope:
                 normed = layers.layer_norm(next_input)
                 nonlinear = libs.leaky_relu(normed)
@@ -158,7 +158,7 @@ class G_MODEL(object):
                     kernel_initializer=layers.xavier_initializer(),
                     bias_initializer=tf.zeros_initializer()
                 )
-                print(conv_result)
+                # print(conv_result)
             return conv_result
 
     def __G_loss_fn(self, fake_samples, conds, lambda_):
@@ -208,15 +208,12 @@ class G_MODEL(object):
 
     def generate(self, sess, latent_inputs, conditions):
         """ to generate result
-        
+
         Returns
         -------
         result : float32, shape=[batch_size, 10]
             positions b team's players 
-        critic_scores : float32, shape=[batch_size]
-            each data get one score from critic net, the higher the better!
         """
         feed_dict = {self.__z: latent_inputs, self.__cond: conditions}
-        result, critic_scores = sess.run(
-            [self.__G_sample, self.__critic_scores], feed_dict=feed_dict)
-        return result, critic_scores
+        result = sess.run(self.__G_sample, feed_dict=feed_dict)
+        return result

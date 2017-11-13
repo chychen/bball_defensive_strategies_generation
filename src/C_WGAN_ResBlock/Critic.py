@@ -88,9 +88,9 @@ class C_MODEL(object):
                 grads = list(zip(grads, theta))
                 self.__train_op = optimizer.apply_gradients(
                     grads_and_vars=grads, global_step=self.__global_steps)
-            for grad, _ in grads:
+            for grad, var in grads:
                 tf.summary.histogram(
-                    grad.name, grad, collections=['C_histogram'])
+                    var.name + '_gradient', grad, collections=['C_histogram'])
             # logging
             tf.summary.scalar('C_loss', self.__loss,
                               collections=['C', 'C_valid'])
@@ -129,14 +129,14 @@ class C_MODEL(object):
                     kernel_initializer=layers.xavier_initializer(),
                     bias_initializer=tf.zeros_initializer()
                 )
-                print(conv_input)
+                # print(conv_input)
             # residual block
             next_input = conv_input
             for i in range(self.n_resblock):
                 res_block = libs.residual_block(
                     'Res' + str(i), next_input, n_layers=2)
                 next_input = res_block
-                print(next_input)
+                # print(next_input)
             with tf.variable_scope('linear_result') as scope:
                 normed = layers.layer_norm(next_input)
                 nonlinear = libs.leaky_relu(normed)
@@ -151,7 +151,7 @@ class C_MODEL(object):
                     scope=scope
                 )
                 linear_result = tf.reshape(linear_result, shape=[self.batch_size])
-                print(linear_result)
+                # print(linear_result)
             return linear_result
 
     def __loss_fn(self, X, G_sample, fake_scores, real_scores, penalty_lambda):
@@ -165,9 +165,9 @@ class C_MODEL(object):
 
             grad = tf.gradients(
                 self.inference(X_inter, self.__matched_cond, reuse=True), [X_inter])[0]
-            print(grad)
+            # print(grad)
             sum_ = tf.reduce_sum(tf.square(grad), axis=[1, 2])
-            print(sum_)
+            # print(sum_)
             grad_norm = tf.sqrt(sum_)
             grad_pen = penalty_lambda * tf.reduce_mean(
                 tf.square(grad_norm - 1.0))

@@ -29,7 +29,7 @@ FLAGS = tf.app.flags.FLAGS
 
 # path parameters
 # TODO read params from checkpoints directory (hyper_parameters.json)
-tf.app.flags.DEFINE_string('folder_path', 'v39',
+tf.app.flags.DEFINE_string('folder_path', 'v1/3',
                            "summary directory")
 tf.app.flags.DEFINE_string('data_path', '../../data/FEATURES.npy',
                            "summary directory")
@@ -38,20 +38,16 @@ tf.app.flags.DEFINE_string('restore_path', None,
 # input parameters
 tf.app.flags.DEFINE_integer('seq_length', 100,
                             "the maximum length of one training data")
-tf.app.flags.DEFINE_integer('latent_dims', 100,
+tf.app.flags.DEFINE_integer('latent_dims', 10,
                             "dimensions of latant variable")
 # model parameters
 tf.app.flags.DEFINE_string('gpus', '0',
                            "define visible gpus")
-tf.app.flags.DEFINE_integer('batch_size', 128,
+tf.app.flags.DEFINE_integer('batch_size', 256,
                             "batch size")
 tf.app.flags.DEFINE_integer('number_diff_z', 10,
                             "number of different conditions of team A")
 
-# PATH
-LOG_PATH = os.path.join(FLAGS.folder_path, 'log/')
-CHECKPOINTS_PATH = os.path.join(FLAGS.folder_path, 'checkpoints/')
-SAMPLE_PATH = os.path.join(FLAGS.folder_path, 'sample/')
 COLLECT_PATH = os.path.join(FLAGS.folder_path, 'collect/')
 # VISIBLE GPUS
 os.environ['CUDA_VISIBLE_DEVICES'] = FLAGS.gpus
@@ -66,13 +62,15 @@ def collecting(data_factory, graph):
     """ collect result
     Saved Result
     ------------
-    results_A : float, numpy ndarray, shape=[batch_size=128, length=100, features_A=13]
+    results_A : float, numpy ndarray, shape=[batch_size, length=100, features_A=13]
         conditional constraints of team A position sequence that generate results
-    results_real_B : float, numpy ndarray, shape=[batch_size=128, length=100, features_B=10]
+    results_real_B : float, numpy ndarray, shape=[batch_size, length=100, features_B=10]
         original real of team B position sequence, used to compare with fake B
-    results_fake_B : float, numpy ndarray, shape=[number_diff_z=100, batch_size=128, length=100, features_B=10]
+    results_fake_B : float, numpy ndarray, shape=[number_diff_z, batch_size, length=100, features_B=10]
         generated results
-    results_latent : float, numpy ndarray, shape=[number_diff_z=100, batch_size=128, latent_dims=100]
+    results_critic_scores : float, numpy ndarray, shape=[number_diff_z, batch_size]
+        critic scores for each input data
+    results_latent : float, numpy ndarray, shape=[number_diff_z, batch_size, latent_dims]
         latent variables that generate the results
 
     Notes
@@ -83,6 +81,7 @@ def collecting(data_factory, graph):
     # result collector
     results_A = []
     results_fake_B = []
+    results_critic_scores = []
     results_real_B = []
     results_latent = []
     # sesstion config
@@ -95,9 +94,14 @@ def collecting(data_factory, graph):
         # placeholder tensor
         latent_input_t = graph.get_tensor_by_name('latent_input:0')
         team_a_t = graph.get_tensor_by_name('team_a:0')
+        real_data_t = graph.get_tensor_by_name('real_data:0')
+        matched_cond_t = graph.get_tensor_by_name('matched_cond:0')
         # result tensor
         result_t = graph.get_tensor_by_name(
-            'WGAN_1/G/conv_result/G/conv_result/Maximum:0')
+            'Generator/G_inference/conv_result/conv1d/Maximum:0')
+        critic_scores_t = graph.get_tensor_by_name(
+            'Critic/C_inference/linear_result/BiasAdd:0')
+        # 'Generator/G_loss/C_inference/linear_result/Reshape:0')
 
         # shuffle the data
         train_data, valid_data = data_factory.shuffle()
@@ -110,11 +114,15 @@ def collecting(data_factory, graph):
             latents[:, 0] = -5 + i
             feed_dict = {
                 latent_input_t: latents,
-                team_a_t: real_conds
+                team_a_t: real_conds,
+                real_data_t: real_samples,
+                matched_cond_t: real_conds
             }
-            result = sess.run(result_t, feed_dict=feed_dict)
+            result, critic_scores = sess.run(
+                [result_t, critic_scores_t], feed_dict=feed_dict)
             result = data_factory.recover_B(result)
             results_fake_B.append(result)
+            results_critic_scores.append(critic_scores)
             results_latent.append(latents)
         real_conds = data_factory.recover_BALL_and_A(real_conds)
         results_A = real_conds
@@ -126,8 +134,12 @@ def collecting(data_factory, graph):
             results_real_B.astype(np.float32))
     np.save(COLLECT_PATH + 'results_fake_B.npy',
             np.array(results_fake_B).astype(np.float32))
+    np.save(COLLECT_PATH + 'results_critic_scores.npy',
+            np.array(results_critic_scores).astype(np.float32).reshape([10, 256]))
+            # np.array(results_critic_scores).astype(np.float32))
     np.save(COLLECT_PATH + 'results_latent.npy',
             np.array(results_latent).astype(np.float32))
+    print(np.array(results_critic_scores).astype(np.float32).reshape([10, 256]).shape)
     print('!!Completely Saved!!')
 
 
