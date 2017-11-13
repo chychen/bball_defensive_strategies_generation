@@ -127,7 +127,7 @@ def training(train_data, valid_data, data_factory, config, graph):
     G = G_MODEL(config, C.inference, graph)
     init = tf.global_variables_initializer()
     # saver for later restore
-    saver = tf.train.Saver()
+    saver = tf.train.Saver(max_to_keep=0) # 0 -> keep them all
     config = tf.ConfigProto()
     config.gpu_options.allow_growth = True
     with tf.Session(config=config) as sess:
