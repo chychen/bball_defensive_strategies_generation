@@ -45,7 +45,7 @@ def update_all(frame_id, player_circles, ball_circle, annotations, data):
     return
 
 
-def plot_data(data, length, file_path=None, if_save=False, fps=4, dpi=48):
+def plot_data(data, length, file_path=None, if_save=False, fps=4, dpi=128):
     """
     Inputs
     ------
@@ -120,7 +120,7 @@ def test():
 
     for i in range(opt.amount):
         plot_data(train_data[i:i + 1], length=100,
-                  file_path=opt.save_path + 'play_' + str(i) + '.gif', if_save=opt.save)
+                  file_path=opt.save_path + 'play_' + str(i) + '.mp4', if_save=opt.save)
     print('opt.save', opt.save)
     print('opt.amount', opt.amount)
     print('opt.seq_length', opt.seq_length)
