@@ -29,7 +29,7 @@ FLAGS = tf.app.flags.FLAGS
 
 # path parameters
 # TODO read params from checkpoints directory (hyper_parameters.json)
-tf.app.flags.DEFINE_string('folder_path', 'v1/3',
+tf.app.flags.DEFINE_string('folder_path', None,
                            "summary directory")
 tf.app.flags.DEFINE_string('data_path', '../../data/FEATURES-4.npy',
                            "summary directory")
@@ -43,9 +43,9 @@ tf.app.flags.DEFINE_integer('latent_dims', 10,
 # model parameters
 tf.app.flags.DEFINE_string('gpus', '0',
                            "define visible gpus")
-tf.app.flags.DEFINE_integer('batch_size', 256,
+tf.app.flags.DEFINE_integer('batch_size', 128,
                             "batch size")
-tf.app.flags.DEFINE_integer('number_diff_z', 100,
+tf.app.flags.DEFINE_integer('number_diff_z', 10,
                             "number of different conditions of team A")
 
 COLLECT_PATH = os.path.join(FLAGS.folder_path, 'collect/')
@@ -94,13 +94,13 @@ def collecting(data_factory, graph):
         # placeholder tensor
         latent_input_t = graph.get_tensor_by_name('latent_input:0')
         team_a_t = graph.get_tensor_by_name('team_a:0')
-        real_data_t = graph.get_tensor_by_name('real_data:0')
+        G_samples_t = graph.get_tensor_by_name('G_samples:0')
         matched_cond_t = graph.get_tensor_by_name('matched_cond:0')
         # result tensor
         result_t = graph.get_tensor_by_name(
             'Generator/G_inference/conv_result/conv1d/Maximum:0')
         critic_scores_t = graph.get_tensor_by_name(
-            'Critic/C_inference/linear_result/BiasAdd:0')
+            'Critic/C_inference_1/linear_result/BiasAdd:0')
         # 'Generator/G_loss/C_inference/linear_result/Reshape:0')
 
         # shuffle the data
@@ -108,19 +108,23 @@ def collecting(data_factory, graph):
         real_samples = train_data['B'][0:FLAGS.batch_size]
         real_conds = train_data['A'][0:FLAGS.batch_size]
         # generate result
-        # latents_base = z_samples()
+        latents_base = z_samples()
         for i in range(FLAGS.number_diff_z):
-            # latents = latents_base
-            # latents[:, 0] = -5 + i
-            latents = z_samples()
+            latents = latents_base
+            latents[:, 0] = -5 + i
+            # latents = z_samples()
             feed_dict = {
                 latent_input_t: latents,
-                team_a_t: real_conds,
-                real_data_t: real_samples,
+                team_a_t: real_conds
+            }
+            result = sess.run(
+                result_t, feed_dict=feed_dict)
+            feed_dict = {
+                G_samples_t: result,
                 matched_cond_t: real_conds
             }
-            result, critic_scores = sess.run(
-                [result_t, critic_scores_t], feed_dict=feed_dict)
+            critic_scores = sess.run(
+                critic_scores_t, feed_dict=feed_dict)
             result = data_factory.recover_B(result)
             results_fake_B.append(result)
             results_critic_scores.append(critic_scores)
@@ -143,31 +147,30 @@ def collecting(data_factory, graph):
     print('!!Completely Saved!!')
 
 
-# def weight_vis(graph):
-#     """ weight_vis
-#     """
-#     def __get_var_list(tag):
-#         """ to get both Generator's and Discriminator's trainable variables
-#         and add trainable variables into histogram
-#         """
-#         trainable_V = tf.trainable_variables()
-#         theta = []
-#         for _, v in enumerate(trainable_V):
-#             if tag in v.name:
-#                 theta.append(v)
-#         return theta
-#     # sesstion config
-#     config = tf.ConfigProto()
-#     config.gpu_options.allow_growth = True
-#     saver = tf.train.import_meta_graph(FLAGS.restore_path + '.meta')
-#     with tf.Session(config=config) as sess:
-#         # restored
-#         saver.restore(sess, FLAGS.restore_path)
-#         # target tensor
-#         theta = __get_var_list('G/linear/weight')
-#         trace = go.Heatmap(z=sess.run(theta[0]))
-#         data = [trace]
-#         plotly.offline.plot(data, filename='G_linear_weight.html')
+def weight_vis(graph):
+    """ weight_vis
+    """
+    def __get_var_list(tag):
+        """ to get both Generator's and Discriminator's trainable variables
+        and add trainable variables into histogram
+        """
+        trainable_V = tf.trainable_variables()
+        for _, v in enumerate(trainable_V):
+            if tag in v.name:
+                return v
+    # sesstion config
+    config = tf.ConfigProto()
+    config.gpu_options.allow_growth = True
+    saver = tf.train.import_meta_graph(FLAGS.restore_path + '.meta')
+    with tf.Session(config=config) as sess:
+        # restored
+        saver.restore(sess, FLAGS.restore_path)
+        # target tensor
+        theta = __get_var_list('C_inference/conv_input')
+        print(theta.shape)
+        trace = go.Heatmap(z=sess.run(theta[0]))
+        data = [trace]
+        plotly.offline.plot(data, filename='C_inference_conv_input.html')
 
 
 def main(_):
