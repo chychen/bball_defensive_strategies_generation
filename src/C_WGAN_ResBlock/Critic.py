@@ -44,6 +44,8 @@ class C_MODEL(object):
         self.penalty_lambda = config.penalty_lambda
         self.n_resblock = config.n_resblock
         self.if_handcraft_features = config.if_handcraft_features
+        self.residual_alpha = config.residual_alpha
+        self.leaky_relu_alpha = config.leaky_relu_alpha
         # steps
         self.__global_steps = tf.train.get_or_create_global_step(graph=graph)
         self.__steps = 0
@@ -134,7 +136,7 @@ class C_MODEL(object):
             next_input = conv_input
             for i in range(self.n_resblock):
                 res_block = libs.residual_block(
-                    'Res' + str(i), next_input, n_layers=2)
+                    'Res' + str(i), next_input, n_layers=2, residual_alpha=self.residual_alpha, leaky_relu_alpha=self.leaky_relu_alpha)
                 next_input = res_block
                 # print(next_input)
             with tf.variable_scope('linear_result') as scope:
@@ -150,7 +152,8 @@ class C_MODEL(object):
                     biases_initializer=tf.zeros_initializer(),
                     scope=scope
                 )
-                linear_result = tf.reshape(linear_result, shape=[self.batch_size])
+                linear_result = tf.reshape(
+                    linear_result, shape=[self.batch_size])
                 # print(linear_result)
             return linear_result
 

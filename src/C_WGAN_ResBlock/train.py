@@ -59,6 +59,10 @@ tf.app.flags.DEFINE_bool('if_handcraft_features', False,
                          "if_handcraft_features")
 tf.app.flags.DEFINE_bool('if_feed_extra_info', False,
                          "if_feed_extra_info, e.g. basket position")
+tf.app.flags.DEFINE_float('residual_alpha', 1.0,
+                          "residual block = F(x) * residual_alpha + x")
+tf.app.flags.DEFINE_float('leaky_relu_alpha', 0.2,
+                          "tf.maximum(x, leaky_relu_alpha * x)")
 # logging
 tf.app.flags.DEFINE_integer('save_model_freq', 100,
                             "num of epoches to save model")
@@ -102,6 +106,8 @@ class TrainingConfig(object):
         self.n_resblock = FLAGS.n_resblock
         self.if_handcraft_features = FLAGS.if_handcraft_features
         self.if_feed_extra_info = FLAGS.if_feed_extra_info
+        self.residual_alpha = FLAGS.residual_alpha
+        self.leaky_relu_alpha = FLAGS.leaky_relu_alpha
         with open(os.path.join(FLAGS.folder_path, 'hyper_parameters.json'), 'w') as outfile:
             json.dump(FLAGS.__dict__['__flags'], outfile)
 
