@@ -98,7 +98,7 @@ def plot_data(data, length, file_path=None, if_save=False, fps=4, dpi=128):
     plt.imshow(court, zorder=0, extent=[0, 100 - 6, 50, 0])
     if if_save:
         anim.save(file_path, fps=fps,
-                  dpi=dpi, writer='imagemagick')
+                  dpi=dpi, writer='ffmpeg')
         print('!!!Animation is saved!!!')
     else:
         plt.show()

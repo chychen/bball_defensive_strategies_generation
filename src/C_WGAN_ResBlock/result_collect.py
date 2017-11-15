@@ -1,6 +1,6 @@
 """
 data url: http://140.113.210.14:6006/NBA/data/F2.npy
-data description: 
+data description:
     event by envet, with 300 sequence for each. (about 75 seconds)
 """
 from __future__ import absolute_import
@@ -45,7 +45,7 @@ tf.app.flags.DEFINE_string('gpus', '0',
                            "define visible gpus")
 tf.app.flags.DEFINE_integer('batch_size', 128,
                             "batch size")
-tf.app.flags.DEFINE_integer('number_diff_z', 10,
+tf.app.flags.DEFINE_integer('number_diff_z', 100,
                             "number of different conditions of team A")
 
 COLLECT_PATH = os.path.join(FLAGS.folder_path, 'collect/')
@@ -75,12 +75,13 @@ def collecting(data_factory, graph):
 
     Notes
     -----
-    features_A=13 : ball(x,y,z)=3*1 + players(x,y)=2*5 
-    features_B=10 : players(x,y)=2*5 
+    features_A=13 : ball(x,y,z)=3*1 + players(x,y)=2*5
+    features_B=10 : players(x,y)=2*5
     """
     # result collector
     results_A = []
     results_fake_B = []
+    results_A_fake_B = []
     results_critic_scores = []
     results_real_B = []
     results_latent = []
@@ -108,11 +109,11 @@ def collecting(data_factory, graph):
         real_samples = train_data['B'][0:FLAGS.batch_size]
         real_conds = train_data['A'][0:FLAGS.batch_size]
         # generate result
-        latents_base = z_samples()
+        # latents_base = z_samples()
         for i in range(FLAGS.number_diff_z):
-            latents = latents_base
-            latents[:, 0] = -5 + i
-            # latents = z_samples()
+            # latents = latents_base
+            # latents[:, 0] = -5 + i
+            latents = z_samples()
             feed_dict = {
                 latent_input_t: latents,
                 team_a_t: real_conds
@@ -125,6 +126,8 @@ def collecting(data_factory, graph):
             }
             critic_scores = sess.run(
                 critic_scores_t, feed_dict=feed_dict)
+            results_A_fake_B.append(data_factory.recover_data(
+                np.concatenate([real_conds, result], axis=-1)))
             result = data_factory.recover_B(result)
             results_fake_B.append(result)
             results_critic_scores.append(critic_scores)
@@ -134,6 +137,8 @@ def collecting(data_factory, graph):
         real_samples = data_factory.recover_B(real_samples)
         results_real_B = real_samples
     # saved as numpy
+    np.save(COLLECT_PATH + 'results_A_fake_B.npy',
+            np.array(results_A_fake_B).astype(np.float32))
     np.save(COLLECT_PATH + 'results_A.npy', results_A.astype(np.float32))
     np.save(COLLECT_PATH + 'results_real_B.npy',
             results_real_B.astype(np.float32))

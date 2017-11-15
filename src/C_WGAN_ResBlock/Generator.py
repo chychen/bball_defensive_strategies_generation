@@ -45,6 +45,8 @@ class G_MODEL(object):
         self.latent_penalty_lambda = config.latent_penalty_lambda
         self.n_resblock = config.n_resblock
         self.if_feed_extra_info = config.if_feed_extra_info
+        self.residual_alpha = config.residual_alpha
+        self.leaky_relu_alpha = config.leaky_relu_alpha
         # steps
         self.__global_steps = tf.train.get_or_create_global_step(graph=graph)
         self.__steps = 0
@@ -142,7 +144,8 @@ class G_MODEL(object):
             # print(next_input)
             # residual block
             for i in range(self.n_resblock):
-                res_block = libs.residual_block('Res' + str(i), next_input)
+                res_block = libs.residual_block(
+                    'Res' + str(i), next_input, n_layers=2, residual_alpha=self.residual_alpha, leaky_relu_alpha=self.leaky_relu_alpha)
                 next_input = res_block
                 # print(next_input)
             with tf.variable_scope('conv_result') as scope:
