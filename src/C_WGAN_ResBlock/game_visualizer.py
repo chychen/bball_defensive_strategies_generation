@@ -14,6 +14,7 @@ from matplotlib.patches import Circle, Rectangle, Arc
 
 from utils import DataFactory
 
+
 def update_all(frame_id, player_circles, ball_circle, annotations, data):
     """ 
     Inputs
@@ -49,8 +50,8 @@ def plot_data(data, length, file_path=None, if_save=False, fps=4, dpi=128):
     """
     Inputs
     ------
-    data : float, shape=[amount, length, 23 + 70]
-        93 = ball's xyz + 10 players's xy + 10 * 7-dims-one-hot 
+    data : float, shape=[amount, length, 23]
+        23 = ball's xyz + 10 players's xy
     length : int
         how long would you like to plot
     file_path : str
@@ -117,14 +118,21 @@ def test():
     data_factory = DataFactory(train_data)
     train_data = data_factory.fetch_ori_data()
     train_data = data_factory.recover_data(train_data)
-
     for i in range(opt.amount):
-        plot_data(train_data[i:i + 1], length=100,
+        plot_data(results_data[i:i + 1], length=100,
                   file_path=opt.save_path + 'play_' + str(i) + '.mp4', if_save=opt.save)
-    print('opt.save', opt.save)
-    print('opt.amount', opt.amount)
-    print('opt.seq_length', opt.seq_length)
-    print('opt.save_path', opt.save_path)
+
+    # cmd e.g. python game_visualizer.py --data_path='../../data/collect/results_A_fake_B.npy' --save_path='../../data/collect/cond1/'
+    # results_data = np.load(opt.data_path)
+    # print(results_data.shape)
+
+    # for i in range(opt.amount):
+    #     plot_data(results_data[i, 1:2], length=100,
+    #               file_path=opt.save_path + 'play_' + str(i) + '.mp4', if_save=opt.save)
+    # print('opt.save', opt.save)
+    # print('opt.amount', opt.amount)
+    # print('opt.seq_length', opt.seq_length)
+    # print('opt.save_path', opt.save_path)
 
 
 if __name__ == '__main__':
@@ -142,4 +150,6 @@ if __name__ == '__main__':
                         default='../../data/FEATURES-4.npy', help='string, path of target data')
 
     opt = parser.parse_args()
+    if not os.path.exists(opt.save_path):
+        os.makedirs(opt.save_path)
     test()
