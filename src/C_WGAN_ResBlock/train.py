@@ -63,6 +63,10 @@ tf.app.flags.DEFINE_float('residual_alpha', 1.0,
                           "residual block = F(x) * residual_alpha + x")
 tf.app.flags.DEFINE_float('leaky_relu_alpha', 0.2,
                           "tf.maximum(x, leaky_relu_alpha * x)")
+tf.app.flags.DEFINE_float('heuristic_penalty_lambda', 100,
+                          "heuristic_penalty_lambda")
+tf.app.flags.DEFINE_bool('if_use_mismatched', True,
+                         "if True, negative scores = mean of (fake_scores + mismatched_scores)")
 # logging
 tf.app.flags.DEFINE_integer('save_model_freq', 100,
                             "num of epoches to save model")
@@ -108,6 +112,8 @@ class TrainingConfig(object):
         self.if_feed_extra_info = FLAGS.if_feed_extra_info
         self.residual_alpha = FLAGS.residual_alpha
         self.leaky_relu_alpha = FLAGS.leaky_relu_alpha
+        self.heuristic_penalty_lambda = FLAGS.heuristic_penalty_lambda
+        self.if_use_mismatched = FLAGS.if_use_mismatched
         with open(os.path.join(FLAGS.folder_path, 'hyper_parameters.json'), 'w') as outfile:
             json.dump(FLAGS.__dict__['__flags'], outfile)
 
@@ -133,7 +139,7 @@ def training(train_data, valid_data, data_factory, config, graph):
     G = G_MODEL(config, C.inference, graph)
     init = tf.global_variables_initializer()
     # saver for later restore
-    saver = tf.train.Saver(max_to_keep=0) # 0 -> keep them all
+    saver = tf.train.Saver(max_to_keep=0)  # 0 -> keep them all
     config = tf.ConfigProto()
     config.gpu_options.allow_growth = True
     with tf.Session(config=config) as sess:

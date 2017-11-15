@@ -46,19 +46,19 @@ class C_MODEL(object):
         self.if_handcraft_features = config.if_handcraft_features
         self.residual_alpha = config.residual_alpha
         self.leaky_relu_alpha = config.leaky_relu_alpha
+        self.heuristic_penalty_lambda = config.heuristic_penalty_lambda
+        self.if_use_mismatched = config.if_use_mismatched
         # steps
         self.__global_steps = tf.train.get_or_create_global_step(graph=graph)
         self.__steps = 0
         # data
         self.__G_samples = tf.placeholder(dtype=tf.float32, shape=[
             self.batch_size, self.seq_length, 10], name='G_samples')
-        self.__X = tf.placeholder(dtype=tf.float32, shape=[
+        self.__real_data = tf.placeholder(dtype=tf.float32, shape=[
             self.batch_size, self.seq_length, 10], name='real_data')
-        # TODO mismatched conditional constraints
-        # self.__mismatched_cond = tf.placeholder(dtype=tf.float32, shape=[
-        #     self.batch_size, self.seq_length, self.num_features], name='mismatched_cond)
         self.__matched_cond = tf.placeholder(dtype=tf.float32, shape=[
             self.batch_size, self.seq_length, 13], name='matched_cond')
+        self.__mismatched_cond = tf.random_shuffle(self.__matched_cond)
         # adversarial learning : wgan
         self.__build_model()
 
@@ -76,12 +76,19 @@ class C_MODEL(object):
     def __build_model(self):
         with tf.name_scope('Critic'):
             # inference
-            real_scores = self.inference(self.__X, self.__matched_cond)
+            real_scores = self.inference(self.__real_data, self.__matched_cond)
             fake_scores = self.inference(
                 self.__G_samples, self.__matched_cond, reuse=True)
+            mismatched_scores = self.inference(
+                self.__real_data, self.__mismatched_cond, reuse=True)
+            if self.if_use_mismatched:
+                neg_scores = (fake_scores + mismatched_scores) / 2.0
+            else:
+                neg_scores = fake_scores
+
             # loss function
-            self.__loss, F_real, F_fake, grad_pen = self.__loss_fn(
-                self.__X, self.__G_samples, fake_scores, real_scores, self.penalty_lambda)
+            self.__loss = self.__loss_fn(
+                self.__real_data, self.__G_samples, neg_scores, real_scores, self.penalty_lambda)
             theta = libs.get_var_list('C')
             with tf.name_scope('optimizer') as scope:
                 optimizer = tf.train.AdamOptimizer(
@@ -93,14 +100,6 @@ class C_MODEL(object):
             for grad, var in grads:
                 tf.summary.histogram(
                     var.name + '_gradient', grad, collections=['C_histogram'])
-            # logging
-            tf.summary.scalar('C_loss', self.__loss,
-                              collections=['C', 'C_valid'])
-            tf.summary.scalar('F_real', F_real, collections=['C'])
-            tf.summary.scalar('F_fake', F_fake, collections=['C'])
-            tf.summary.scalar('F_real-F_fake', F_real -
-                              F_fake, collections=['C'])
-            tf.summary.scalar('grad_pen', grad_pen, collections=['C'])
 
     def inference(self, inputs, conds, reuse=False):
         """
@@ -152,19 +151,53 @@ class C_MODEL(object):
                     biases_initializer=tf.zeros_initializer(),
                     scope=scope
                 )
-                linear_result = tf.reshape(
+                final_ = tf.reshape(
                     linear_result, shape=[self.batch_size])
-                # print(linear_result)
-            return linear_result
+                # print(final_)
+            with tf.name_scope('heuristic_penalty') as scope:
+                # 0. prepare data
+                ball_pos = tf.reshape(conds[:, :, :2], shape=[
+                                      self.batch_size, self.seq_length, 1, 2])
+                teamB_pos = tf.reshape(
+                    inputs, shape=[self.batch_size, self.seq_length, 5, 2])
+                basket_right_x = tf.constant(self.data_factory.BASKET_RIGHT[0], dtype=tf.float32, shape=[
+                    self.batch_size, self.seq_length, 1, 1])
+                basket_right_y = tf.constant(self.data_factory.BASKET_RIGHT[1], dtype=tf.float32, shape=[
+                    self.batch_size, self.seq_length, 1, 1])
+                basket_pos = tf.concat(
+                    [basket_right_x, basket_right_y], axis=-1)
 
-    def __loss_fn(self, X, G_sample, fake_scores, real_scores, penalty_lambda):
+                vec_ball_2_teamB = ball_pos - teamB_pos  # [128,100,5,2]
+                vec_ball_2_basket = ball_pos - basket_pos  # [128,100,1,2]
+                b2teamB_dot_b2basket = tf.matmul(
+                    vec_ball_2_teamB, vec_ball_2_basket, transpose_b=True)  # [128,100,5,1]
+                b2teamB_dot_b2basket = tf.reshape(b2teamB_dot_b2basket, shape=[
+                    self.batch_size, self.seq_length, 5])
+                dist_ball_2_teamB = tf.norm(
+                    vec_ball_2_teamB, ord='euclidean', axis=-1)
+                dist_ball_2_basket = tf.norm(
+                    vec_ball_2_basket, ord='euclidean', axis=-1)
+                one_sub_cosine = 1 - b2teamB_dot_b2basket / \
+                    (dist_ball_2_teamB * dist_ball_2_basket)
+                heuristic_penalty_all = one_sub_cosine * dist_ball_2_teamB
+                heuristic_penalty_min = tf.reduce_min(
+                    heuristic_penalty_all, axis=-1)
+                heuristic_penalty = tf.reduce_mean(heuristic_penalty_min)
+
+            # logging
+            tf.summary.scalar('heuristic_penalty',
+                              heuristic_penalty, collections=['C'])
+
+            return final_ + self.heuristic_penalty_lambda * heuristic_penalty
+
+    def __loss_fn(self, real_data, G_sample, fake_scores, real_scores, penalty_lambda):
         """ C loss
         """
         with tf.name_scope('C_loss') as scope:
             # grad_pen, base on paper (Improved WGAN)
             epsilon = tf.random_uniform(
                 [self.batch_size, 1, 1], minval=0.0, maxval=1.0)
-            X_inter = epsilon * X + (1.0 - epsilon) * G_sample
+            X_inter = epsilon * real_data + (1.0 - epsilon) * G_sample
 
             grad = tf.gradients(
                 self.inference(X_inter, self.__matched_cond, reuse=True), [X_inter])[0]
@@ -178,14 +211,24 @@ class C_MODEL(object):
             f_real = tf.reduce_mean(real_scores)
 
             loss = f_fake - f_real + grad_pen
-        return loss, f_real, f_fake, grad_pen
+
+            # logging
+            tf.summary.scalar('C_loss', loss,
+                              collections=['C', 'C_valid'])
+            tf.summary.scalar('F_real', f_real, collections=['C'])
+            tf.summary.scalar('F_fake', f_fake, collections=['C'])
+            tf.summary.scalar('F_real-F_fake', f_real -
+                              f_fake, collections=['C'])
+            tf.summary.scalar('grad_pen', grad_pen, collections=['C'])
+
+        return loss
 
     def step(self, sess, G_samples, real_data, conditions):
         """ train one batch on C
         """
         feed_dict = {self.__G_samples: G_samples,
                      self.__matched_cond: conditions,
-                     self.__X: real_data}
+                     self.__real_data: real_data}
         summary, loss, global_steps, _ = sess.run(
             [self.__summary_op, self.__loss, self.__global_steps, self.__train_op], feed_dict=feed_dict)
         # log
@@ -205,7 +248,7 @@ class C_MODEL(object):
         """
         feed_dict = {self.__G_samples: G_samples,
                      self.__matched_cond: conditions,
-                     self.__X: real_data}
+                     self.__real_data: real_data}
         summary, loss, global_steps = sess.run(
             [self.__summary_valid_op, self.__loss, self.__global_steps], feed_dict=feed_dict)
         # log
