@@ -45,7 +45,9 @@ tf.app.flags.DEFINE_string('gpus', '0',
                            "define visible gpus")
 tf.app.flags.DEFINE_integer('batch_size', 128,
                             "batch size")
-tf.app.flags.DEFINE_integer('number_diff_z', 100,
+tf.app.flags.DEFINE_integer('n_batch', 10,
+                            "how many number of batch you want to collect?")
+tf.app.flags.DEFINE_integer('number_diff_z', None,
                             "number of different conditions of team A")
 
 COLLECT_PATH = os.path.join(FLAGS.folder_path, 'collect/')
@@ -103,49 +105,79 @@ def collecting(data_factory, graph):
         critic_scores_t = graph.get_tensor_by_name(
             'Critic/C_inference_1/linear_result/BiasAdd:0')
         # 'Generator/G_loss/C_inference/linear_result/Reshape:0')
-
         # shuffle the data
         train_data, valid_data = data_factory.shuffle()
-        real_samples = train_data['B'][0:FLAGS.batch_size]
-        real_conds = train_data['A'][0:FLAGS.batch_size]
-        # generate result
-        # latents_base = z_samples()
-        for i in range(FLAGS.number_diff_z):
-            # latents = latents_base
-            # latents[:, 0] = -5 + i
-            latents = z_samples()
-            feed_dict = {
-                latent_input_t: latents,
-                team_a_t: real_conds
-            }
-            result = sess.run(
-                result_t, feed_dict=feed_dict)
-            feed_dict = {
-                G_samples_t: result,
-                matched_cond_t: real_conds
-            }
-            critic_scores = sess.run(
-                critic_scores_t, feed_dict=feed_dict)
-            results_A_fake_B.append(data_factory.recover_data(
-                np.concatenate([real_conds, result], axis=-1)))
-            result = data_factory.recover_B(result)
-            results_fake_B.append(result)
-            results_critic_scores.append(critic_scores)
-            results_latent.append(latents)
-        real_conds = data_factory.recover_BALL_and_A(real_conds)
-        results_A = real_conds
-        real_samples = data_factory.recover_B(real_samples)
-        results_real_B = real_samples
+        if FLAGS.n_batch is not None:
+            for batch_id in range(FLAGS.n_batch):
+                idx = batch_id * FLAGS.batch_size
+                real_samples = train_data['B'][idx:idx + FLAGS.batch_size]
+                real_conds = train_data['A'][idx:idx + FLAGS.batch_size]
+                latents = z_samples()
+                feed_dict = {
+                    latent_input_t: latents,
+                    team_a_t: real_conds
+                }
+                result = sess.run(
+                    result_t, feed_dict=feed_dict)
+                feed_dict = {
+                    G_samples_t: result,
+                    matched_cond_t: real_conds
+                }
+                critic_scores = sess.run(
+                    critic_scores_t, feed_dict=feed_dict)
+                results_A_fake_B.append(data_factory.recover_data(
+                    np.concatenate([real_conds, result], axis=-1)))
+                result = data_factory.recover_B(result)
+                results_fake_B.append(result)
+                results_critic_scores.append(critic_scores)
+                results_latent.append(latents)
+                real_conds = data_factory.recover_BALL_and_A(real_conds)
+                results_A.append(real_conds)
+                real_samples = data_factory.recover_B(real_samples)
+                results_real_B.append(real_samples)
+        elif FLAGS.number_diff_z is not None:
+            # one condition cmp different z
+            real_samples = train_data['B'][0:FLAGS.batch_size]
+            real_conds = train_data['A'][0:FLAGS.batch_size]
+            # generate result
+            # latents_base = z_samples()
+            for i in range(FLAGS.number_diff_z):
+                # latents = latents_base
+                # latents[:, 0] = -5 + i
+                latents = z_samples()
+                feed_dict = {
+                    latent_input_t: latents,
+                    team_a_t: real_conds
+                }
+                result = sess.run(
+                    result_t, feed_dict=feed_dict)
+                feed_dict = {
+                    G_samples_t: result,
+                    matched_cond_t: real_conds
+                }
+                critic_scores = sess.run(
+                    critic_scores_t, feed_dict=feed_dict)
+                results_A_fake_B.append(data_factory.recover_data(
+                    np.concatenate([real_conds, result], axis=-1)))
+                result = data_factory.recover_B(result)
+                results_fake_B.append(result)
+                results_critic_scores.append(critic_scores)
+                results_latent.append(latents)
+            real_conds = data_factory.recover_BALL_and_A(real_conds)
+            results_A = real_conds
+            real_samples = data_factory.recover_B(real_samples)
+            results_real_B = real_samples
     # saved as numpy
     np.save(COLLECT_PATH + 'results_A_fake_B.npy',
             np.array(results_A_fake_B).astype(np.float32))
-    np.save(COLLECT_PATH + 'results_A.npy', results_A.astype(np.float32))
+    np.save(COLLECT_PATH + 'results_A.npy',
+            np.array(results_A).astype(np.float32))
     np.save(COLLECT_PATH + 'results_real_B.npy',
-            results_real_B.astype(np.float32))
+            np.array(results_real_B).astype(np.float32))
     np.save(COLLECT_PATH + 'results_fake_B.npy',
             np.array(results_fake_B).astype(np.float32))
     np.save(COLLECT_PATH + 'results_critic_scores.npy',
-            np.array(results_critic_scores).astype(np.float32).reshape([FLAGS.number_diff_z, FLAGS.batch_size]))
+            np.array(results_critic_scores).astype(np.float32).reshape([-1, FLAGS.batch_size]))
     # np.array(results_critic_scores).astype(np.float32))
     np.save(COLLECT_PATH + 'results_latent.npy',
             np.array(results_latent).astype(np.float32))
