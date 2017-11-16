@@ -63,9 +63,9 @@ tf.app.flags.DEFINE_float('residual_alpha', 1.0,
                           "residual block = F(x) * residual_alpha + x")
 tf.app.flags.DEFINE_float('leaky_relu_alpha', 0.2,
                           "tf.maximum(x, leaky_relu_alpha * x)")
-tf.app.flags.DEFINE_float('heuristic_penalty_lambda', 100,
+tf.app.flags.DEFINE_float('heuristic_penalty_lambda', 0.0,
                           "heuristic_penalty_lambda")
-tf.app.flags.DEFINE_bool('if_use_mismatched', True,
+tf.app.flags.DEFINE_bool('if_use_mismatched', False,
                          "if True, negative scores = mean of (fake_scores + mismatched_scores)")
 # logging
 tf.app.flags.DEFINE_integer('save_model_freq', 100,
@@ -256,10 +256,14 @@ if __name__ == '__main__':
     assert FLAGS.comment is not None, 'comment is required, please add it by --comment'
     assert FLAGS.folder_path is not None, 'folder_path is required, please add it by --folder_path'
     if FLAGS.restore_path is None:
-        # when not restore, remove follows (old) for new training
-        if os.path.exists(FLAGS.folder_path):
-            shutil.rmtree(FLAGS.folder_path)
-            print('rm -rf "%s" complete!' % FLAGS.folder_path)
+        ans = input('"%s" will be removed!! are you sure (y/N)? ' % FLAGS.folder_path)
+        if ans == 'Y' or ans =='y':
+            # when not restore, remove follows (old) for new training
+            if os.path.exists(FLAGS.folder_path):
+                shutil.rmtree(FLAGS.folder_path)
+                print('rm -rf "%s" complete!' % FLAGS.folder_path)
+        else:
+            exit()
 
     if not os.path.exists(LOG_PATH):
         os.makedirs(LOG_PATH)
