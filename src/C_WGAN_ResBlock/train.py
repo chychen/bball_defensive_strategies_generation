@@ -63,9 +63,9 @@ tf.app.flags.DEFINE_float('residual_alpha', 1.0,
                           "residual block = F(x) * residual_alpha + x")
 tf.app.flags.DEFINE_float('leaky_relu_alpha', 0.2,
                           "tf.maximum(x, leaky_relu_alpha * x)")
-tf.app.flags.DEFINE_float('heuristic_penalty_lambda', 100,
+tf.app.flags.DEFINE_float('heuristic_penalty_lambda', 0.0,
                           "heuristic_penalty_lambda")
-tf.app.flags.DEFINE_bool('if_use_mismatched', True,
+tf.app.flags.DEFINE_bool('if_use_mismatched', False,
                          "if True, negative scores = mean of (fake_scores + mismatched_scores)")
 # logging
 tf.app.flags.DEFINE_integer('save_model_freq', 100,
