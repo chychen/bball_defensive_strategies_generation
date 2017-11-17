@@ -78,9 +78,9 @@ class C_MODEL(object):
         with tf.name_scope('Critic'):
             # inference
             real_scores = self.inference(
-                self.__real_data, self.__matched_cond, if_log_scalar_summary=True)
+                self.__real_data, self.__matched_cond, if_log_scalar_summary=True, log_scope_name='real_scores')
             fake_scores = self.inference(
-                self.__G_samples, self.__matched_cond, reuse=True, if_log_scalar_summary=True)
+                self.__G_samples, self.__matched_cond, reuse=True, if_log_scalar_summary=True, log_scope_name='fake_scores')
             mismatched_scores = self.inference(
                 self.__real_data, self.__mismatched_cond, reuse=True)
             if self.if_use_mismatched:
@@ -103,7 +103,7 @@ class C_MODEL(object):
                 tf.summary.histogram(
                     var.name + '_gradient', grad, collections=['C_histogram'])
 
-    def inference(self, inputs, conds, reuse=False, if_log_scalar_summary=False):
+    def inference(self, inputs, conds, reuse=False, if_log_scalar_summary=False, log_scope_name=''):
         """
         Inputs
         ------
@@ -195,9 +195,10 @@ class C_MODEL(object):
 
             # logging
             if if_log_scalar_summary:
-                tf.summary.scalar('heuristic_penalty',
-                                  heuristic_penalty, collections=['C'])
-                tf.summary.scalar('trainable_lambda',
+                with tf.name_scope(log_scope_name):
+                    tf.summary.scalar('heuristic_penalty',
+                                    heuristic_penalty, collections=['C'])
+                    tf.summary.scalar('trainable_lambda',
                                   trainable_lambda, collections=['C'])
 
             return final_ - trainable_lambda * heuristic_penalty
