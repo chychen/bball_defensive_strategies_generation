@@ -48,6 +48,7 @@ class C_MODEL(object):
         self.leaky_relu_alpha = config.leaky_relu_alpha
         self.heuristic_penalty_lambda = config.heuristic_penalty_lambda
         self.if_use_mismatched = config.if_use_mismatched
+        self.if_trainable_lambda = config.if_trainable_lambda
         # steps
         self.__global_steps = tf.train.get_or_create_global_step(graph=graph)
         self.__steps = 0
@@ -76,9 +77,10 @@ class C_MODEL(object):
     def __build_model(self):
         with tf.name_scope('Critic'):
             # inference
-            real_scores = self.inference(self.__real_data, self.__matched_cond)
+            real_scores = self.inference(
+                self.__real_data, self.__matched_cond, if_log_scalar_summary=True)
             fake_scores = self.inference(
-                self.__G_samples, self.__matched_cond, reuse=True)
+                self.__G_samples, self.__matched_cond, reuse=True, if_log_scalar_summary=True)
             mismatched_scores = self.inference(
                 self.__real_data, self.__mismatched_cond, reuse=True)
             if self.if_use_mismatched:
@@ -101,7 +103,7 @@ class C_MODEL(object):
                 tf.summary.histogram(
                     var.name + '_gradient', grad, collections=['C_histogram'])
 
-    def inference(self, inputs, conds, reuse=False):
+    def inference(self, inputs, conds, reuse=False, if_log_scalar_summary=False):
         """
         Inputs
         ------
@@ -184,11 +186,21 @@ class C_MODEL(object):
                     heuristic_penalty_all, axis=-1)
                 heuristic_penalty = tf.reduce_mean(heuristic_penalty_min)
 
-            # logging
-            tf.summary.scalar('heuristic_penalty',
-                              heuristic_penalty, collections=['C'])
+                if self.if_trainable_lambda:
+                    trainable_lambda = tf.get_variable('trainable_heuristic_penalty_lambda', shape=[
+                    ], dtype=tf.float32, initializer=tf.constant_initializer(value=1.0))
+                else:
+                    trainable_lambda = tf.constant(
+                        self.heuristic_penalty_lambda)
 
-            return final_ + self.heuristic_penalty_lambda * heuristic_penalty
+            # logging
+            if if_log_scalar_summary:
+                tf.summary.scalar('heuristic_penalty',
+                                  heuristic_penalty, collections=['C'])
+                tf.summary.scalar('trainable_lambda',
+                                  trainable_lambda, collections=['C'])
+
+            return final_ - trainable_lambda * heuristic_penalty
 
     def __loss_fn(self, real_data, G_sample, fake_scores, real_scores, penalty_lambda):
         """ C loss

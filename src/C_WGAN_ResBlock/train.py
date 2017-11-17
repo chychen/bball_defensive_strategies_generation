@@ -67,6 +67,8 @@ tf.app.flags.DEFINE_float('heuristic_penalty_lambda', 0.0,
                           "heuristic_penalty_lambda")
 tf.app.flags.DEFINE_bool('if_use_mismatched', False,
                          "if True, negative scores = mean of (fake_scores + mismatched_scores)")
+tf.app.flags.DEFINE_bool('if_trainable_lambda', False,
+                         "if_trainable_lambda")
 # logging
 tf.app.flags.DEFINE_integer('save_model_freq', 100,
                             "num of epoches to save model")
@@ -114,6 +116,7 @@ class TrainingConfig(object):
         self.leaky_relu_alpha = FLAGS.leaky_relu_alpha
         self.heuristic_penalty_lambda = FLAGS.heuristic_penalty_lambda
         self.if_use_mismatched = FLAGS.if_use_mismatched
+        self.if_trainable_lambda = FLAGS.if_trainable_lambda
         with open(os.path.join(FLAGS.folder_path, 'hyper_parameters.json'), 'w') as outfile:
             json.dump(FLAGS.__dict__['__flags'], outfile)
 

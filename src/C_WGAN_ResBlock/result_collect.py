@@ -28,7 +28,6 @@ FLAGS = tf.app.flags.FLAGS
 
 
 # path parameters
-# TODO read params from checkpoints directory (hyper_parameters.json)
 tf.app.flags.DEFINE_string('folder_path', None,
                            "summary directory")
 tf.app.flags.DEFINE_string('data_path', '../../data/FEATURES-4.npy',
