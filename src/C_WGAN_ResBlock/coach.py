@@ -51,6 +51,9 @@ def scoring(sess, table, cond_A, fake_B, graph):
         'Critic/C_inference_1/linear_result/BiasAdd:0')
     # 'Generator/G_loss/C_inference/linear_result/Reshape:0')
     critic_scores_all = []
+    if cond_A.shape[1] == 256:
+        cond_A = cond_A.reshape([-1, 128, 100, 13])
+        fake_B = fake_B.reshape([-1, 128, 100, 10])
     for batch_id in range(cond_A.shape[0]):
         feed_dict = {
             G_samples_t: fake_B[batch_id],
@@ -76,22 +79,24 @@ def main(_):
         with tf.Session(config=config) as sess:
             # restored
             saver.restore(sess, FLAGS.restore_path)
-            cond_A = None
-            fake_B = None
             score_table = {}
             for path, dirs, files in os.walk(FLAGS.folder_path):
                 if 'collect' in path:
+                    cond_A = None
+                    fake_B = None
                     for file_name in files:
                         if 'results_A' in file_name:
                             cond_A = np.load(os.path.join(path, file_name))
                         if 'results_fake_B' in file_name:
                             fake_B = np.load(os.path.join(path, file_name))
-                    score_table[path] = {}
-                    with open(os.path.join(path, '../hyper_parameters.json')) as hyper_json:
-                        score_table[path]['comment'] = json.load(hyper_json)['comment']
-                    scoring(sess, score_table[path],
-                            cond_A, fake_B, graph=graph)
-                    print("finish %s !!" %(path))
+                    if cond_A is not None and fake_B is not None:
+                        score_table[path] = {}
+                        with open(os.path.join(path, '../hyper_parameters.json')) as hyper_json:
+                            score_table[path]['comment'] = json.load(hyper_json)[
+                                'comment']
+                        scoring(sess, score_table[path],
+                                cond_A, fake_B, graph=graph)
+                        print("finish %s !!" % (path))
             # dump result
             with open(SCORE_TABLE_PATH, 'w') as outfile:
                 json.dump(score_table, outfile)
