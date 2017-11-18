@@ -84,9 +84,9 @@ class C_MODEL(object):
                 self.__real_data, self.__matched_cond, if_log_scalar_summary=True, log_scope_name='real_scores')
             fake_scores = self.inference(
                 self.__G_samples, self.__matched_cond, reuse=True, if_log_scalar_summary=True, log_scope_name='fake_scores')
-            mismatched_scores = self.inference(
-                self.__real_data, self.__mismatched_cond, reuse=True)
             if self.if_use_mismatched:
+                mismatched_scores = self.inference(
+                    self.__real_data, self.__mismatched_cond, reuse=True)
                 neg_scores = (fake_scores + mismatched_scores) / 2.0
             else:
                 neg_scores = fake_scores
@@ -216,9 +216,14 @@ class C_MODEL(object):
             epsilon = tf.random_uniform(
                 [self.batch_size, 1, 1], minval=0.0, maxval=1.0)
             X_inter = epsilon * real_data + (1.0 - epsilon) * G_sample
+            if self.if_use_mismatched:
+                cond_inter = epsilon * self.__matched_cond + \
+                    (1.0 - epsilon) * self.__mismatched_cond
+            else:
+                cond_inter = self.__matched_cond
 
             grad = tf.gradients(
-                self.inference(X_inter, self.__matched_cond, reuse=True), [X_inter])[0]
+                self.inference(X_inter, cond_inter, reuse=True), [X_inter])[0]
             # print(grad)
             sum_ = tf.reduce_sum(tf.square(grad), axis=[1, 2])
             # print(sum_)
@@ -252,7 +257,7 @@ class C_MODEL(object):
         # log
         self.summary_writer.add_summary(
             summary, global_step=global_steps)
-        if (steps-1) % 1000 == 0:
+        if (steps - 1) % 1000 == 0:
             summary_histogram = sess.run(
                 self.__summary_histogram_op, feed_dict=feed_dict)
             self.summary_writer.add_summary(

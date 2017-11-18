@@ -265,8 +265,8 @@ if __name__ == '__main__':
                 # when not restore, remove follows (old) for new training
                 shutil.rmtree(FLAGS.folder_path)
                 print('rm -rf "%s" complete!' % FLAGS.folder_path)
-        else:
-            exit()
+            else:
+                exit()
 
     if not os.path.exists(LOG_PATH):
         os.makedirs(LOG_PATH)
