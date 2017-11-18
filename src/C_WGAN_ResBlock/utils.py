@@ -140,7 +140,6 @@ class DataFactory(object):
     def __get_ready(self):
         train = {}
         valid = {}
-        shuffled_indexes = np.random.permutation(self.__real_data.shape[0])
         # A
         team_A = np.concatenate(
             [
@@ -151,7 +150,7 @@ class DataFactory(object):
                 self.__real_data[:, :, 1:6, :2].reshape(
                     [self.__real_data.shape[0], self.__real_data.shape[1], 5 * 2])
             ], axis=-1
-        )[shuffled_indexes]
+        )
         train['A'], valid['A'] = np.split(
             team_A, [self.__real_data.shape[0] // 10 * 9])
         print(train['A'].shape)
@@ -159,7 +158,7 @@ class DataFactory(object):
         # B
         team_B = self.__real_data[:, :, 6:11, :2].reshape(
             [self.__real_data.shape[0], self.__real_data.shape[1], 5 * 2]
-        )[shuffled_indexes]
+        )
         train['B'], valid['B'] = np.split(
             team_B, [self.__real_data.shape[0] // 10 * 9])
         print(train['B'].shape)
