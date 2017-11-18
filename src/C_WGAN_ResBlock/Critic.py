@@ -51,7 +51,10 @@ class C_MODEL(object):
         self.if_trainable_lambda = config.if_trainable_lambda
         # steps
         self.__global_steps = tf.train.get_or_create_global_step(graph=graph)
-        self.__steps = 0
+        self.__steps = tf.get_variable('C_steps', shape=[
+        ], dtype=tf.int32, initializer=tf.zeros_initializer(dtype=tf.int32), trainable=False)
+        tf.summary.scalar('C_steps',
+                          self.__steps, collections=['C'])
         # data
         self.__G_samples = tf.placeholder(dtype=tf.float32, shape=[
             self.batch_size, self.seq_length, 10], name='G_samples')
@@ -93,12 +96,14 @@ class C_MODEL(object):
                 self.__real_data, self.__G_samples, neg_scores, real_scores, self.penalty_lambda)
             theta = libs.get_var_list('C')
             with tf.name_scope('optimizer') as scope:
-                optimizer = tf.train.AdamOptimizer(
-                    learning_rate=self.learning_rate, beta1=0.5, beta2=0.9)
-                grads = tf.gradients(self.__loss, theta)
-                grads = list(zip(grads, theta))
-                self.__train_op = optimizer.apply_gradients(
-                    grads_and_vars=grads, global_step=self.__global_steps)
+                assign_add_ = tf.assign_add(self.__steps, 1)
+                with tf.control_dependencies([assign_add_]):
+                    optimizer = tf.train.AdamOptimizer(
+                        learning_rate=self.learning_rate, beta1=0.5, beta2=0.9)
+                    grads = tf.gradients(self.__loss, theta)
+                    grads = list(zip(grads, theta))
+                    self.__train_op = optimizer.apply_gradients(
+                        grads_and_vars=grads, global_step=self.__global_steps)
             for grad, var in grads:
                 tf.summary.histogram(
                     var.name + '_gradient', grad, collections=['C_histogram'])
@@ -197,9 +202,9 @@ class C_MODEL(object):
             if if_log_scalar_summary:
                 with tf.name_scope(log_scope_name):
                     tf.summary.scalar('heuristic_penalty',
-                                    heuristic_penalty, collections=['C'])
+                                      heuristic_penalty, collections=['C'])
                     tf.summary.scalar('trainable_lambda',
-                                  trainable_lambda, collections=['C'])
+                                      trainable_lambda, collections=['C'])
 
             return final_ - trainable_lambda * heuristic_penalty
 
@@ -231,7 +236,7 @@ class C_MODEL(object):
             tf.summary.scalar('F_real', f_real, collections=['C'])
             tf.summary.scalar('F_fake', f_fake, collections=['C'])
             tf.summary.scalar('F_real-F_fake', f_real -
-                              f_fake, collections=['C'])
+                              f_fake, collections=['C', 'C_valid'])
             tf.summary.scalar('grad_pen', grad_pen, collections=['C'])
 
         return loss
@@ -242,18 +247,17 @@ class C_MODEL(object):
         feed_dict = {self.__G_samples: G_samples,
                      self.__matched_cond: conditions,
                      self.__real_data: real_data}
-        summary, loss, global_steps, _ = sess.run(
-            [self.__summary_op, self.__loss, self.__global_steps, self.__train_op], feed_dict=feed_dict)
+        steps, summary, loss, global_steps, _ = sess.run(
+            [self.__steps, self.__summary_op, self.__loss, self.__global_steps, self.__train_op], feed_dict=feed_dict)
         # log
         self.summary_writer.add_summary(
             summary, global_step=global_steps)
-        if self.__steps % 1000 == 0:
+        if (steps-1) % 1000 == 0:
             summary_histogram = sess.run(
                 self.__summary_histogram_op, feed_dict=feed_dict)
             self.summary_writer.add_summary(
                 summary_histogram, global_step=global_steps)
 
-        self.__steps += 1
         return loss, global_steps
 
     def log_valid_loss(self, sess, G_samples, real_data, conditions):
