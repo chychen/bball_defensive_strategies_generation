@@ -72,7 +72,7 @@ tf.app.flags.DEFINE_bool('if_trainable_lambda', False,
 # logging
 tf.app.flags.DEFINE_integer('save_model_freq', 100,
                             "num of epoches to save model")
-tf.app.flags.DEFINE_integer('save_result_freq', 30,
+tf.app.flags.DEFINE_integer('save_result_freq', 100,
                             "num of epoches to save gif")
 tf.app.flags.DEFINE_integer('log_freq', 1000,
                             "num of steps to log")
@@ -259,10 +259,10 @@ if __name__ == '__main__':
     assert FLAGS.comment is not None, 'comment is required, please add it by --comment'
     assert FLAGS.folder_path is not None, 'folder_path is required, please add it by --folder_path'
     if FLAGS.restore_path is None:
-        ans = input('"%s" will be removed!! are you sure (y/N)? ' % FLAGS.folder_path)
-        if ans == 'Y' or ans =='y':
-            # when not restore, remove follows (old) for new training
-            if os.path.exists(FLAGS.folder_path):
+        if os.path.exists(FLAGS.folder_path):
+            ans = input('"%s" will be removed!! are you sure (y/N)? ' % FLAGS.folder_path)
+            if ans == 'Y' or ans =='y':
+                # when not restore, remove follows (old) for new training
                 shutil.rmtree(FLAGS.folder_path)
                 print('rm -rf "%s" complete!' % FLAGS.folder_path)
         else:
