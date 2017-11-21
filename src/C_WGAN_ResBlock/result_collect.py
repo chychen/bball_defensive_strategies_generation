@@ -45,14 +45,15 @@ tf.app.flags.DEFINE_integer('batch_size', 128,
 tf.app.flags.DEFINE_integer('latent_dims', 10,
                             "latent_dims")
 # collect mode
+tf.app.flags.DEFINE_integer('n_latents', 100,
+                            "n_latents")
+tf.app.flags.DEFINE_integer('n_conditions', 128 * 9,
+                            "n_conditions")
 tf.app.flags.DEFINE_integer('mode', None,
                             "mode to collect, \
-                           1 -> to show diversity, only changing first dimension \
-                           2 -> to cmp with other trained model, using the same conds and latents to gather 1280 results \
-                           3 -> to show best result, gathering 100 result by 100 latents per condition \
-                           4 -> draw heat map on particular layers's weight \
-                           5 -> to show best result given same conditions, gathering 100 result by 100 latents per condition \
-                           6 -> to show best result in all conditions of validation dataset")
+                           1 -> to collect results \
+                           2 -> to show diversity \
+                           3 -> weight visualization")
 
 # VISIBLE GPUS
 os.environ['CUDA_VISIBLE_DEVICES'] = FLAGS.gpus
@@ -64,228 +65,15 @@ def z_samples(batch_size):
 
 
 def mode_1(sess, graph, save_path):
-    """ to show diversity, only changing first dimension
+    """ collect results
     Saved Result
     ------------
-    results_A : float, numpy ndarray, shape=[batch_size, length=100, features_A=13]
-        conditional constraints of team A position sequence that generate results
-    results_real_B : float, numpy ndarray, shape=[batch_size, length=100, features_B=10]
-        original real of team B position sequence, used to compare with fake B
-    results_fake_B : float, numpy ndarray, shape=[10, batch_size, length=100, features_B=10]
-        generated results
-    results_A_fake_B : float, numpy ndarray, shape=[batch_size, length=100, features=23]
-        generated results with both conds and fake B
-    results_critic_scores : float, numpy ndarray, shape=[10, batch_size]
+    results_A_fake_B : float, numpy ndarray, shape=[n_latents=100, n_conditions=128*9, length=100, features=23]
+        Real A + Fake B
+    results_A_real_B : float, numpy ndarray, shape=[n_latents=100, n_conditions=128*9, length=100, features=23]
+        Real A + Real B
+    results_critic_scores : float, numpy ndarray, shape=[n_latents=100, n_conditions=128*9]
         critic scores for each input data
-    results_latent : float, numpy ndarray, shape=[10, batch_size, latent_dims]
-        latent variables that generate the results
-
-    Notes
-    -----
-    features_A=13 : ball(x,y,z)=3*1 + players(x,y)=2*5
-    features_B=10 : players(x,y)=2*5
-    """
-    # placeholder tensor
-    latent_input_t = graph.get_tensor_by_name('latent_input:0')
-    team_a_t = graph.get_tensor_by_name('team_a:0')
-    G_samples_t = graph.get_tensor_by_name('G_samples:0')
-    matched_cond_t = graph.get_tensor_by_name('matched_cond:0')
-    # result tensor
-    result_t = graph.get_tensor_by_name(
-        'Generator/G_inference/conv_result/conv1d/Maximum:0')
-    critic_scores_t = graph.get_tensor_by_name(
-        'Critic/C_inference_1/linear_result/BiasAdd:0')
-    # 'Generator/G_loss/C_inference/linear_result/Reshape:0')
-
-    if not os.path.exists(save_path):
-        os.makedirs(save_path)
-    real_data = np.load(FLAGS.data_path)[:, :FLAGS.seq_length, :, :]
-    print('real_data.shape', real_data.shape)
-    # normalize
-    data_factory = DataFactory(real_data)
-    # result collector
-    results_A = []
-    results_fake_B = []
-    results_A_fake_B = []
-    results_critic_scores = []
-    results_real_B = []
-    results_latent = []
-
-    # shuffle the data
-    train_data, valid_data = data_factory.shuffle()
-    # one condition cmp different z
-    real_samples = train_data['B'][0:FLAGS.batch_size]
-    real_conds = train_data['A'][0:FLAGS.batch_size]
-    # generate result
-    latents_base = z_samples(FLAGS.batch_size)
-    for i in range(10):
-        latents = latents_base
-        latents[:, 0] = -2.5 + i * 0.5
-        feed_dict = {
-            latent_input_t: latents,
-            team_a_t: real_conds
-        }
-        result = sess.run(
-            result_t, feed_dict=feed_dict)
-        feed_dict = {
-            G_samples_t: result,
-            matched_cond_t: real_conds
-        }
-        critic_scores = sess.run(
-            critic_scores_t, feed_dict=feed_dict)
-        results_A_fake_B.append(data_factory.recover_data(
-            np.concatenate([real_conds, result], axis=-1)))
-        result = data_factory.recover_B(result)
-        results_fake_B.append(result)
-        results_critic_scores.append(critic_scores)
-        results_latent.append(latents)
-    real_conds = data_factory.recover_BALL_and_A(real_conds)
-    results_A = real_conds
-    real_samples = data_factory.recover_B(real_samples)
-    results_real_B = real_samples
-    # saved as numpy
-    np.save(save_path + 'results_A_fake_B.npy',
-            np.array(results_A_fake_B).astype(np.float32))
-    np.save(save_path + 'results_A.npy',
-            np.array(results_A).astype(np.float32))
-    np.save(save_path + 'results_real_B.npy',
-            np.array(results_real_B).astype(np.float32))
-    np.save(save_path + 'results_fake_B.npy',
-            np.array(results_fake_B).astype(np.float32))
-    np.save(save_path + 'results_critic_scores.npy',
-            np.array(results_critic_scores).astype(np.float32).reshape([-1, FLAGS.batch_size]))
-    # np.array(results_critic_scores).astype(np.float32))
-    np.save(save_path + 'results_latent.npy',
-            np.array(results_latent).astype(np.float32))
-    print('!!Completely Saved!!')
-
-
-def mode_2(sess, graph, save_path):
-    """ to cmp with other trained model, using the same conds and latents to gather 1280 results
-    Saved Result
-    ------------
-    results_A : float, numpy ndarray, shape=[batch_size, length=100, features_A=13]
-        conditional constraints of team A position sequence that generate results
-    results_real_B : float, numpy ndarray, shape=[batch_size, length=100, features_B=10]
-        original real of team B position sequence, used to compare with fake B
-    results_fake_B : float, numpy ndarray, shape=[1280, length=100, features_B=10]
-        generated results
-    results_critic_scores : float, numpy ndarray, shape=[1280]
-        critic scores for each input data
-    results_latent : float, numpy ndarray, shape=[1280, latent_dims]
-        latent variables that generate the results
-
-    Notes
-    -----
-    features_A=13 : ball(x,y,z)=3*1 + players(x,y)=2*5
-    features_B=10 : players(x,y)=2*5
-    """
-    # placeholder tensor
-    latent_input_t = graph.get_tensor_by_name('latent_input:0')
-    team_a_t = graph.get_tensor_by_name('team_a:0')
-    G_samples_t = graph.get_tensor_by_name('G_samples:0')
-    matched_cond_t = graph.get_tensor_by_name('matched_cond:0')
-    # result tensor
-    result_t = graph.get_tensor_by_name(
-        'Generator/G_inference/conv_result/conv1d/Maximum:0')
-    critic_scores_t = graph.get_tensor_by_name(
-        'Critic/C_inference_1/linear_result/BiasAdd:0')
-    # 'Generator/G_loss/C_inference/linear_result/Reshape:0')
-
-    if not os.path.exists(save_path):
-        os.makedirs(save_path)
-    # load conditions and latents
-    if not os.path.exists('co_latents.npy') or not os.path.exists('co_conditions.npy'):
-        real_data = np.load(FLAGS.data_path)[:, :FLAGS.seq_length, :, :]
-        print('real_data.shape', real_data.shape)
-        # normalize
-        data_factory = DataFactory(real_data)
-        train_data, _ = data_factory.shuffle()
-        real_samples_all = train_data['B'][:1280]
-        real_conds_all = train_data['A'][:1280]
-        latents_all = z_samples(1280)
-        np.save('co_real_samples.npy', real_samples_all)
-        np.save('co_latents.npy', latents_all)
-        np.save('co_conditions.npy', real_conds_all)
-    else:
-        real_samples_all = np.load('co_real_samples.npy')
-        latents_all = np.load('co_latents.npy')
-        real_conds_all = np.load('co_conditions.npy')
-
-    # result collector
-    results_A = []
-    results_fake_B = []
-    results_A_fake_B = []
-    results_critic_scores = []
-    results_real_B = []
-    results_latent = []
-
-    n_batch = 1280 // FLAGS.batch_size
-    for batch_id in range(n_batch):
-        idx = batch_id * FLAGS.batch_size
-        real_samples = real_samples_all[idx:idx + FLAGS.batch_size]
-        real_conds = real_conds_all[idx:idx + FLAGS.batch_size]
-        latents = latents_all[idx:idx + FLAGS.batch_size]
-        feed_dict = {
-            latent_input_t: latents,
-            team_a_t: real_conds
-        }
-        result = sess.run(
-            result_t, feed_dict=feed_dict)
-        feed_dict = {
-            G_samples_t: result,
-            matched_cond_t: real_conds
-        }
-        critic_scores = sess.run(
-            critic_scores_t, feed_dict=feed_dict)
-        results_A_fake_B.append(data_factory.recover_data(
-            np.concatenate([real_conds, result], axis=-1)))
-        result = data_factory.recover_B(result)
-        results_fake_B.append(result)
-        results_critic_scores.append(critic_scores)
-        results_latent.append(latents)
-        real_conds = data_factory.recover_BALL_and_A(real_conds)
-        results_A.append(real_conds)
-        real_samples = data_factory.recover_B(real_samples)
-        results_real_B.append(real_samples)
-    # saved as numpy
-    np.save(save_path + 'results_A_fake_B.npy',
-            np.array(results_A_fake_B).astype(np.float32))
-    np.save(save_path + 'results_A.npy',
-            np.array(results_A).astype(np.float32))
-    np.save(save_path + 'results_real_B.npy',
-            np.array(results_real_B).astype(np.float32))
-    np.save(save_path + 'results_fake_B.npy',
-            np.array(results_fake_B).astype(np.float32))
-    np.save(save_path + 'results_critic_scores.npy',
-            np.array(results_critic_scores).astype(np.float32).reshape([-1, FLAGS.batch_size]))
-    # np.array(results_critic_scores).astype(np.float32))
-    np.save(save_path + 'results_latent.npy',
-            np.array(results_latent).astype(np.float32))
-    print('!!Completely Saved!!')
-
-
-def mode_3(sess, graph, save_path):
-    """ to show best result, gathering 100 result by 100 latents per condition
-    Saved Result
-    ------------
-    results_A : float, numpy ndarray, shape=[batch_size, length=100, features_A=13]
-        conditional constraints of team A position sequence that generate results
-    results_real_B : float, numpy ndarray, shape=[batch_size, length=100, features_B=10]
-        original real of team B position sequence, used to compare with fake B
-    results_fake_B : float, numpy ndarray, shape=[100, batch_size, length=100, features_B=10]
-        generated results
-    results_A_fake_B : float, numpy ndarray, shape=[batch_size, length=100, features=23]
-        generated results with both conds and fake B
-    results_critic_scores : float, numpy ndarray, shape=[100, batch_size]
-        critic scores for each input data
-    results_latent : float, numpy ndarray, shape=[100, batch_size, latent_dims]
-        latent variables that generate the results
-
-    Notes
-    -----
-    features_A=13 : ball(x,y,z)=3*1 + players(x,y)=2*5
-    features_B=10 : players(x,y)=2*5
     """
     # placeholder tensor
     latent_input_t = graph.get_tensor_by_name('latent_input:0')
@@ -307,260 +95,20 @@ def mode_3(sess, graph, save_path):
     # normalize
     data_factory = DataFactory(real_data)
     # result collector
-    results_A = []
-    results_fake_B = []
     results_A_fake_B = []
+    results_A_real_B = []
     results_critic_scores = []
-    results_real_B = []
-    results_latent = []
-
-    # shuffle the data
-    train_data, valid_data = data_factory.shuffle()
-    # one condition cmp different z
-    real_samples = train_data['B'][0:FLAGS.batch_size]
-    real_conds = train_data['A'][0:FLAGS.batch_size]
-    # generate result
-    for i in range(100):
-        latents = z_samples(FLAGS.batch_size)
-        feed_dict = {
-            latent_input_t: latents,
-            team_a_t: real_conds
-        }
-        result = sess.run(
-            result_t, feed_dict=feed_dict)
-        feed_dict = {
-            G_samples_t: result,
-            matched_cond_t: real_conds
-        }
-        critic_scores = sess.run(
-            critic_scores_t, feed_dict=feed_dict)
-        results_A_fake_B.append(data_factory.recover_data(
-            np.concatenate([real_conds, result], axis=-1)))
-        result = data_factory.recover_B(result)
-        results_fake_B.append(result)
-        results_critic_scores.append(critic_scores)
-        results_latent.append(latents)
-    real_conds = data_factory.recover_BALL_and_A(real_conds)
-    results_A = real_conds
-    real_samples = data_factory.recover_B(real_samples)
-    results_real_B = real_samples
-    # saved as numpy
-    np.save(save_path + 'results_A_fake_B.npy',
-            np.array(results_A_fake_B).astype(np.float32))
-    np.save(save_path + 'results_A.npy',
-            np.array(results_A).astype(np.float32))
-    np.save(save_path + 'results_real_B.npy',
-            np.array(results_real_B).astype(np.float32))
-    np.save(save_path + 'results_fake_B.npy',
-            np.array(results_fake_B).astype(np.float32))
-    np.save(save_path + 'results_critic_scores.npy',
-            np.array(results_critic_scores).astype(np.float32).reshape([-1, FLAGS.batch_size]))
-    # np.array(results_critic_scores).astype(np.float32))
-    np.save(save_path + 'results_latent.npy',
-            np.array(results_latent).astype(np.float32))
-    print('!!Completely Saved!!')
-
-
-def weight_vis(graph, save_path):
-    """ draw heat map on particular layers's weight
-    """
-    if not os.path.exists(save_path):
-        os.makedirs(save_path)
-
-    def __get_var_list(tag):
-        """ to get both Generator's and Discriminator's trainable variables
-        and add trainable variables into histogram
-        """
-        trainable_V = tf.trainable_variables()
-        for _, v in enumerate(trainable_V):
-            if tag in v.name:
-                return v
-    # sesstion config
-    config = tf.ConfigProto()
-    config.gpu_options.allow_growth = True
-    saver = tf.train.import_meta_graph(FLAGS.restore_path + '.meta')
-    with tf.Session(config=config) as sess:
-        # restored
-        saver.restore(sess, FLAGS.restore_path)
-        # target tensor
-        theta = __get_var_list('C_inference/conv_input')
-        print(theta.shape)
-        trace = go.Heatmap(z=sess.run(theta[0]))
-        data = [trace]
-        plotly.offline.plot(data, filename='C_inference_conv_input.html')
-    print('!!Completely Saved!!')
-
-
-def mode_5(sess, graph, save_path):
-    """ to show best result given same conditions, gathering 100 result by 100 latents per condition
-    Saved Result
-    ------------
-    results_A : float, numpy ndarray, shape=[batch_size, length=100, features_A=13]
-        conditional constraints of team A position sequence that generate results
-    results_real_B : float, numpy ndarray, shape=[batch_size, length=100, features_B=10]
-        original real of team B position sequence, used to compare with fake B
-    results_fake_B : float, numpy ndarray, shape=[100, batch_size, length=100, features_B=10]
-        generated results
-    results_A_fake_B : float, numpy ndarray, shape=[batch_size, length=100, features=23]
-        generated results with both conds and fake B
-    results_critic_scores : float, numpy ndarray, shape=[100, batch_size]
-        critic scores for each input data
-    results_latent : float, numpy ndarray, shape=[100, batch_size, latent_dims]
-        latent variables that generate the results
-
-    Notes
-    -----
-    features_A=13 : ball(x,y,z)=3*1 + players(x,y)=2*5
-    features_B=10 : players(x,y)=2*5
-    """
-    # placeholder tensor
-    latent_input_t = graph.get_tensor_by_name('latent_input:0')
-    team_a_t = graph.get_tensor_by_name('team_a:0')
-    G_samples_t = graph.get_tensor_by_name('G_samples:0')
-    matched_cond_t = graph.get_tensor_by_name('matched_cond:0')
-    # result tensor
-    result_t = graph.get_tensor_by_name(
-        'Generator/G_inference/conv_result/conv1d/Maximum:0')
-    critic_scores_t = graph.get_tensor_by_name(
-        'Critic/C_inference_1/linear_result/BiasAdd:0')
-    # 'Generator/G_loss/C_inference/linear_result/Reshape:0')
-
-    if not os.path.exists(save_path):
-        os.makedirs(save_path)
-    if not os.path.exists('mode_5'):
-        os.makedirs('mode_5')
-
-    # load conditions and latents
-    real_data = np.load(FLAGS.data_path)[:, :FLAGS.seq_length, :, :]
-    print('real_data.shape', real_data.shape)
-    # normalize
-    data_factory = DataFactory(real_data)
-    if not os.path.exists(os.path.join('mode_5', 'co_latents.npy')) or not os.path.exists(os.path.join('mode_5', 'co_conditions.npy')):
-        print('!!!NOT EXIST!!!')
-        train_data, _ = data_factory.shuffle()
-        real_samples_all = train_data['B'][:FLAGS.batch_size]
-        real_conds_all = train_data['A'][:FLAGS.batch_size]
-        latents_all = z_samples(
-            100 * FLAGS.batch_size).reshape([100, FLAGS.batch_size, FLAGS.latent_dims])
-        np.save(os.path.join('mode_5', 'co_real_samples.npy'), real_samples_all)
-        np.save(os.path.join('mode_5', 'co_latents.npy'), latents_all)
-        np.save(os.path.join('mode_5', 'co_conditions.npy'), real_conds_all)
-    else:
-        print('!!!EXIST!!!')
-        real_samples_all = np.load(os.path.join(
-            'mode_5', 'co_real_samples.npy'))
-        latents_all = np.load(os.path.join('mode_5', 'co_latents.npy'))
-        real_conds_all = np.load(os.path.join('mode_5', 'co_conditions.npy'))
-
-    # result collector
-    results_A = []
-    results_fake_B = []
-    results_A_fake_B = []
-    results_critic_scores = []
-    results_real_B = []
-    results_latent = []
-
-    # generate result
-    for i in range(100):
-        real_conds = real_conds_all
-        real_samples = real_samples_all
-        latents = latents_all[i]
-        feed_dict = {
-            latent_input_t: latents,
-            team_a_t: real_conds
-        }
-        result = sess.run(
-            result_t, feed_dict=feed_dict)
-        feed_dict = {
-            G_samples_t: result,
-            matched_cond_t: real_conds
-        }
-        critic_scores = sess.run(
-            critic_scores_t, feed_dict=feed_dict)
-        results_A_fake_B.append(data_factory.recover_data(
-            np.concatenate([real_conds, result], axis=-1)))
-        result = data_factory.recover_B(result)
-        results_fake_B.append(result)
-        results_critic_scores.append(critic_scores)
-        results_latent.append(latents)
-    real_conds = data_factory.recover_BALL_and_A(real_conds)
-    results_A = real_conds
-    real_samples = data_factory.recover_B(real_samples)
-    results_real_B = real_samples
-    # saved as numpy
-    np.save(save_path + 'results_A_fake_B.npy',
-            np.array(results_A_fake_B).astype(np.float32))
-    np.save(save_path + 'results_A.npy',
-            np.array(results_A).astype(np.float32))
-    np.save(save_path + 'results_real_B.npy',
-            np.array(results_real_B).astype(np.float32))
-    np.save(save_path + 'results_fake_B.npy',
-            np.array(results_fake_B).astype(np.float32))
-    np.save(save_path + 'results_critic_scores.npy',
-            np.array(results_critic_scores).astype(np.float32).reshape([-1, FLAGS.batch_size]))
-    # np.array(results_critic_scores).astype(np.float32))
-    np.save(save_path + 'results_latent.npy',
-            np.array(results_latent).astype(np.float32))
-    print('!!Completely Saved!!')
-
-
-def mode_6(sess, graph, save_path):
-    """ to show best result in all conditions of validation dataset
-    Saved Result
-    ------------
-    results_A : float, numpy ndarray, shape=[valid_size, length=100, features_A=13]
-        conditional constraints of team A position sequence that generate results
-    results_real_B : float, numpy ndarray, shape=[valid_size, length=100, features_B=10]
-        original real of team B position sequence, used to compare with fake B
-    results_fake_B : float, numpy ndarray, shape=[10, valid_size, length=100, features_B=10]
-        generated results
-    results_A_fake_B : float, numpy ndarray, shape=[valid_size, length=100, features=23]
-        generated results with both conds and fake B
-    results_critic_scores : float, numpy ndarray, shape=[10, valid_size]
-        critic scores for each input data
-    results_latent : float, numpy ndarray, shape=[10, valid_size, latent_dims]
-        latent variables that generate the results
-
-    Notes
-    -----
-    features_A=13 : ball(x,y,z)=3*1 + players(x,y)=2*5
-    features_B=10 : players(x,y)=2*5
-    """
-    # placeholder tensor
-    latent_input_t = graph.get_tensor_by_name('latent_input:0')
-    team_a_t = graph.get_tensor_by_name('team_a:0')
-    G_samples_t = graph.get_tensor_by_name('G_samples:0')
-    matched_cond_t = graph.get_tensor_by_name('matched_cond:0')
-    # result tensor
-    result_t = graph.get_tensor_by_name(
-        'Generator/G_inference/conv_result/conv1d/Maximum:0')
-    critic_scores_t = graph.get_tensor_by_name(
-        'Critic/C_inference_1/linear_result/BiasAdd:0')
-    # 'Generator/G_loss/C_inference/linear_result/Reshape:0')
-
-    if not os.path.exists(save_path):
-        os.makedirs(save_path)
-
-    real_data = np.load(FLAGS.data_path)[:, :FLAGS.seq_length, :, :]
-    print('real_data.shape', real_data.shape)
-    # normalize
-    data_factory = DataFactory(real_data)
-    # result collector
-    results_A = []
-    results_fake_B = []
-    results_A_fake_B = []
-    results_critic_scores = []
-    results_real_B = []
-    results_latent = []
 
     # shuffle the data
     train_data, valid_data = data_factory.fetch_data()
     n_batch = valid_data['A'].shape[0] // FLAGS.batch_size
-    for idx in range(n_batch):
+    for idx in range(0, FLAGS.n_conditions, FLAGS.batch_size):
         real_samples = valid_data['B'][idx:idx + FLAGS.batch_size]
         real_conds = valid_data['A'][idx:idx + FLAGS.batch_size]
         # generate result
-        for i in range(10):
+        temp_critic_scores = []
+        temp_A_fake_B = []
+        for i in range(FLAGS.n_latents):
             latents = z_samples(FLAGS.batch_size)
             feed_dict = {
                 latent_input_t: latents,
@@ -574,35 +122,117 @@ def mode_6(sess, graph, save_path):
             }
             critic_scores = sess.run(
                 critic_scores_t, feed_dict=feed_dict)
-            results_A_fake_B.append(data_factory.recover_data(
+            temp_A_fake_B.append(data_factory.recover_data(
                 np.concatenate([real_conds, result], axis=-1)))
-            result = data_factory.recover_B(result)
-            results_fake_B.append(result)
-            results_critic_scores.append(critic_scores)
-            results_latent.append(latents)
+            temp_critic_scores.append(critic_scores)
+        results_A_fake_B.append(temp_A_fake_B)
+        results_critic_scores.append(temp_critic_scores)
+    # concat along with conditions dimension (axis=1)
+    results_A_fake_B = np.concatenate(results_A_fake_B, axis=1)
+    results_critic_scores = np.concatenate(results_critic_scores, axis=1)
     results_A = data_factory.recover_BALL_and_A(
         valid_data['A'][:FLAGS.batch_size * n_batch])
     results_real_B = data_factory.recover_B(
         valid_data['B'][:FLAGS.batch_size * n_batch])
+    results_A_real_B = np.concatenate([results_A, results_real_B], axis=-1)
     # saved as numpy
     print(np.array(results_A_fake_B).shape)
-    print(np.array(results_A).shape)
-    print(np.array(results_real_B).shape)
-    print(np.array(results_fake_B).shape)
+    print(np.array(results_A_real_B).shape)
     print(np.array(results_critic_scores).shape)
-    print(np.array(results_latent).shape)
     np.save(save_path + 'results_A_fake_B.npy',
-            np.array(results_A_fake_B).astype(np.float32).reshape([10, FLAGS.batch_size * n_batch, FLAGS.seq_length, 23]))
-    np.save(save_path + 'results_A.npy',
-            np.array(results_A).astype(np.float32).reshape([FLAGS.batch_size * n_batch, FLAGS.seq_length, 13]))
-    np.save(save_path + 'results_real_B.npy',
-            np.array(results_real_B).astype(np.float32).reshape([FLAGS.batch_size * n_batch, FLAGS.seq_length, 10]))
-    np.save(save_path + 'results_fake_B.npy',
-            np.array(results_fake_B).astype(np.float32).reshape([10, FLAGS.batch_size * n_batch, FLAGS.seq_length, 10]))
+            np.array(results_A_fake_B).astype(np.float32).reshape([FLAGS.n_latents, FLAGS.batch_size * n_batch, FLAGS.seq_length, 23]))
+    np.save(save_path + 'results_A_real_B.npy',
+            np.array(results_A_real_B).astype(np.float32).reshape([FLAGS.batch_size * n_batch, FLAGS.seq_length, 23]))
     np.save(save_path + 'results_critic_scores.npy',
-            np.array(results_critic_scores).astype(np.float32).reshape([10, FLAGS.batch_size * n_batch]))
-    np.save(save_path + 'results_latent.npy',
-            np.array(results_latent).astype(np.float32).reshape([10, FLAGS.batch_size * n_batch, FLAGS.seq_length]))
+            np.array(results_critic_scores).astype(np.float32).reshape([FLAGS.n_latents, FLAGS.batch_size * n_batch]))
+    print('!!Completely Saved!!')
+
+
+def mode_2(sess, graph, save_path):
+    """ to show diversity, only changing first dimension
+    Saved Result
+    ------------
+    results_A_fake_B : float, numpy ndarray, shape=[n_latents=11, n_conditions=128*9, length=100, features=23]
+        Real A + Fake B
+    results_A_real_B : float, numpy ndarray, shape=[n_latents=11, n_conditions=128*9, length=100, features=23]
+        Real A + Real B
+    results_critic_scores : float, numpy ndarray, shape=[n_latents=11, n_conditions=128*9]
+        critic scores for each input data
+    """
+    target_dims = 0
+    n_latents = 11
+
+    # placeholder tensor
+    latent_input_t = graph.get_tensor_by_name('latent_input:0')
+    team_a_t = graph.get_tensor_by_name('team_a:0')
+    G_samples_t = graph.get_tensor_by_name('G_samples:0')
+    matched_cond_t = graph.get_tensor_by_name('matched_cond:0')
+    # result tensor
+    result_t = graph.get_tensor_by_name(
+        'Generator/G_inference/conv_result/conv1d/Maximum:0')
+    critic_scores_t = graph.get_tensor_by_name(
+        'Critic/C_inference_1/linear_result/BiasAdd:0')
+    # 'Generator/G_loss/C_inference/linear_result/Reshape:0')
+
+    if not os.path.exists(save_path):
+        os.makedirs(save_path)
+
+    real_data = np.load(FLAGS.data_path)[:, :FLAGS.seq_length, :, :]
+    print('real_data.shape', real_data.shape)
+    # normalize
+    data_factory = DataFactory(real_data)
+    # result collector
+    results_A_fake_B = []
+    results_A_real_B = []
+    results_critic_scores = []
+
+    # shuffle the data
+    train_data, valid_data = data_factory.fetch_data()
+    n_batch = valid_data['A'].shape[0] // FLAGS.batch_size
+    latents = z_samples(FLAGS.batch_size)
+    for idx in range(0, FLAGS.n_conditions, FLAGS.batch_size):
+        real_samples = valid_data['B'][idx:idx + FLAGS.batch_size]
+        real_conds = valid_data['A'][idx:idx + FLAGS.batch_size]
+        # generate result
+        temp_critic_scores = []
+        temp_A_fake_B = []
+        for i in range(n_latents):
+            latents[:, target_dims] = -2.5 + 0.5 * i
+            feed_dict = {
+                latent_input_t: latents,
+                team_a_t: real_conds
+            }
+            result = sess.run(
+                result_t, feed_dict=feed_dict)
+            feed_dict = {
+                G_samples_t: result,
+                matched_cond_t: real_conds
+            }
+            critic_scores = sess.run(
+                critic_scores_t, feed_dict=feed_dict)
+            temp_A_fake_B.append(data_factory.recover_data(
+                np.concatenate([real_conds, result], axis=-1)))
+            temp_critic_scores.append(critic_scores)
+        results_A_fake_B.append(temp_A_fake_B)
+        results_critic_scores.append(temp_critic_scores)
+    # concat along with conditions dimension (axis=1)
+    results_A_fake_B = np.concatenate(results_A_fake_B, axis=1)
+    results_critic_scores = np.concatenate(results_critic_scores, axis=1)
+    results_A = data_factory.recover_BALL_and_A(
+        valid_data['A'][:FLAGS.batch_size * n_batch])
+    results_real_B = data_factory.recover_B(
+        valid_data['B'][:FLAGS.batch_size * n_batch])
+    results_A_real_B = np.concatenate([results_A, results_real_B], axis=-1)
+    # saved as numpy
+    print(np.array(results_A_fake_B).shape)
+    print(np.array(results_A_real_B).shape)
+    print(np.array(results_critic_scores).shape)
+    np.save(save_path + 'results_A_fake_B.npy',
+            np.array(results_A_fake_B).astype(np.float32).reshape([n_latents, FLAGS.batch_size * n_batch, FLAGS.seq_length, 23]))
+    np.save(save_path + 'results_A_real_B.npy',
+            np.array(results_A_real_B).astype(np.float32).reshape([FLAGS.batch_size * n_batch, FLAGS.seq_length, 23]))
+    np.save(save_path + 'results_critic_scores.npy',
+            np.array(results_critic_scores).astype(np.float32).reshape([n_latents, FLAGS.batch_size * n_batch]))
     print('!!Completely Saved!!')
 
 
@@ -623,17 +253,8 @@ def main(_):
                 mode_2(sess, graph, save_path=os.path.join(
                     COLLECT_PATH, 'mode_2/'))
             elif FLAGS.mode == 3:
-                mode_3(sess, graph, save_path=os.path.join(
-                    COLLECT_PATH, 'mode_3/'))
-            elif FLAGS.mode == 4:
                 weight_vis(graph, save_path=os.path.join(
-                    COLLECT_PATH, 'mode_4/'))
-            elif FLAGS.mode == 5:
-                mode_5(sess, graph, save_path=os.path.join(
-                    COLLECT_PATH, 'mode_5/'))
-            elif FLAGS.mode == 6:
-                mode_6(sess, graph, save_path=os.path.join(
-                    COLLECT_PATH, 'mode_6/'))
+                    COLLECT_PATH, 'mode_3/'))
 
 
 if __name__ == '__main__':
