@@ -145,8 +145,21 @@ class C_MODEL(object):
                     'Res' + str(i), next_input, n_layers=2, residual_alpha=self.residual_alpha, leaky_relu_alpha=self.leaky_relu_alpha)
                 next_input = res_block
                 # print(next_input)
+            with tf.variable_scope('conv_output') as scope:
+                normed = layers.layer_norm(next_input)                
+                conv_output = tf.layers.conv1d(
+                    inputs=normed,
+                    filters=1,
+                    kernel_size=5,
+                    strides=1,
+                    padding='same',
+                    activation=libs.leaky_relu,
+                    kernel_initializer=layers.xavier_initializer(),
+                    bias_initializer=tf.zeros_initializer()
+                )
+                # print(conv_output) TODO
             with tf.variable_scope('linear_result') as scope:
-                normed = layers.layer_norm(next_input)
+                normed = layers.layer_norm(conv_output)
                 nonlinear = libs.leaky_relu(normed)
                 flatten_ = layers.flatten(nonlinear)
                 linear_result = layers.fully_connected(

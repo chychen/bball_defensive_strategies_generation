@@ -114,25 +114,25 @@ def test():
     """
     test only
     """
-    train_data = np.load(opt.data_path)
-    data_factory = DataFactory(train_data)
-    train_data = data_factory.fetch_ori_data()
-    train_data = data_factory.recover_data(train_data)
-    for i in range(opt.amount):
-        plot_data(results_data[i:i + 1], length=100,
-                  file_path=opt.save_path + 'play_' + str(i) + '.mp4', if_save=opt.save)
-
-    # cmd e.g. python game_visualizer.py --data_path='../../data/collect/results_A_fake_B.npy' --save_path='../../data/collect/cond1/'
-    # results_data = np.load(opt.data_path)
-    # print(results_data.shape)
-
+    # train_data = np.load(opt.data_path)
+    # data_factory = DataFactory(train_data)
+    # train_data = data_factory.fetch_ori_data()
+    # train_data = data_factory.recover_data(train_data)
     # for i in range(opt.amount):
-    #     plot_data(results_data[i, 1:2], length=100,
+    #     plot_data(results_data[i:i + 1], length=100,
     #               file_path=opt.save_path + 'play_' + str(i) + '.mp4', if_save=opt.save)
-    # print('opt.save', opt.save)
-    # print('opt.amount', opt.amount)
-    # print('opt.seq_length', opt.seq_length)
-    # print('opt.save_path', opt.save_path)
+
+    # cmd e.g. python game_visualizer.py --data_path='../../data/collect/mode_6/results_A_fake_B.npy' --save_path='../../data/collect/try/' --amount=10
+    results_data = np.load(opt.data_path)
+    print(results_data.shape)
+
+    for i in range(opt.amount):
+        plot_data(results_data[i, 1:2], length=100,
+                  file_path=opt.save_path + 'play_' + str(i) + '.mp4', if_save=opt.save)
+    print('opt.save', opt.save)
+    print('opt.amount', opt.amount)
+    print('opt.seq_length', opt.seq_length)
+    print('opt.save_path', opt.save_path)
 
 
 if __name__ == '__main__':
