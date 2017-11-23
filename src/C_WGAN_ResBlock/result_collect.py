@@ -47,8 +47,10 @@ tf.app.flags.DEFINE_integer('latent_dims', 10,
 # collect mode
 tf.app.flags.DEFINE_integer('n_latents', 100,
                             "n_latents")
-tf.app.flags.DEFINE_integer('n_conditions', 128 * 9,
+tf.app.flags.DEFINE_integer('n_conditions', 128 * 9,  # because there are 9 batch_size data amount in validation set
                             "n_conditions")
+tf.app.flags.DEFINE_bool('is_valid', True,
+                         "is_valid")
 tf.app.flags.DEFINE_integer('mode', None,
                             "mode to collect, \
                            1 -> to collect results \
@@ -64,7 +66,7 @@ def z_samples(batch_size):
         0., 1., size=[batch_size, FLAGS.latent_dims])
 
 
-def mode_1(sess, graph, save_path):
+def mode_1(sess, graph, save_path, is_valid=FLAGS.is_valid):
     """ collect results
     Saved Result
     ------------
@@ -101,10 +103,14 @@ def mode_1(sess, graph, save_path):
 
     # shuffle the data
     train_data, valid_data = data_factory.fetch_data()
-    n_batch = valid_data['A'].shape[0] // FLAGS.batch_size
+    if is_valid:
+        target_data = valid_data
+    else:
+        target_data = train_data
+
     for idx in range(0, FLAGS.n_conditions, FLAGS.batch_size):
-        real_samples = valid_data['B'][idx:idx + FLAGS.batch_size]
-        real_conds = valid_data['A'][idx:idx + FLAGS.batch_size]
+        real_samples = target_data['B'][idx:idx + FLAGS.batch_size]
+        real_conds = target_data['A'][idx:idx + FLAGS.batch_size]
         # generate result
         temp_critic_scores = []
         temp_A_fake_B = []
@@ -131,24 +137,24 @@ def mode_1(sess, graph, save_path):
     results_A_fake_B = np.concatenate(results_A_fake_B, axis=1)
     results_critic_scores = np.concatenate(results_critic_scores, axis=1)
     results_A = data_factory.recover_BALL_and_A(
-        valid_data['A'][:FLAGS.batch_size * n_batch])
+        target_data['A'][:FLAGS.n_conditions])
     results_real_B = data_factory.recover_B(
-        valid_data['B'][:FLAGS.batch_size * n_batch])
+        target_data['B'][:FLAGS.n_conditions])
     results_A_real_B = np.concatenate([results_A, results_real_B], axis=-1)
     # saved as numpy
     print(np.array(results_A_fake_B).shape)
     print(np.array(results_A_real_B).shape)
     print(np.array(results_critic_scores).shape)
     np.save(save_path + 'results_A_fake_B.npy',
-            np.array(results_A_fake_B).astype(np.float32).reshape([FLAGS.n_latents, FLAGS.batch_size * n_batch, FLAGS.seq_length, 23]))
+            np.array(results_A_fake_B).astype(np.float32).reshape([FLAGS.n_latents, FLAGS.n_conditions, FLAGS.seq_length, 23]))
     np.save(save_path + 'results_A_real_B.npy',
-            np.array(results_A_real_B).astype(np.float32).reshape([FLAGS.batch_size * n_batch, FLAGS.seq_length, 23]))
+            np.array(results_A_real_B).astype(np.float32).reshape([FLAGS.n_conditions, FLAGS.seq_length, 23]))
     np.save(save_path + 'results_critic_scores.npy',
-            np.array(results_critic_scores).astype(np.float32).reshape([FLAGS.n_latents, FLAGS.batch_size * n_batch]))
+            np.array(results_critic_scores).astype(np.float32).reshape([FLAGS.n_latents, FLAGS.n_conditions]))
     print('!!Completely Saved!!')
 
 
-def mode_2(sess, graph, save_path):
+def mode_2(sess, graph, save_path, is_valid=FLAGS.is_valid):
     """ to show diversity, only changing first dimension
     Saved Result
     ------------
@@ -188,11 +194,14 @@ def mode_2(sess, graph, save_path):
 
     # shuffle the data
     train_data, valid_data = data_factory.fetch_data()
-    n_batch = valid_data['A'].shape[0] // FLAGS.batch_size
+    if is_valid:
+        target_data = valid_data
+    else:
+        target_data = train_data
     latents = z_samples(FLAGS.batch_size)
     for idx in range(0, FLAGS.n_conditions, FLAGS.batch_size):
-        real_samples = valid_data['B'][idx:idx + FLAGS.batch_size]
-        real_conds = valid_data['A'][idx:idx + FLAGS.batch_size]
+        real_samples = target_data['B'][idx:idx + FLAGS.batch_size]
+        real_conds = target_data['A'][idx:idx + FLAGS.batch_size]
         # generate result
         temp_critic_scores = []
         temp_A_fake_B = []
@@ -219,20 +228,20 @@ def mode_2(sess, graph, save_path):
     results_A_fake_B = np.concatenate(results_A_fake_B, axis=1)
     results_critic_scores = np.concatenate(results_critic_scores, axis=1)
     results_A = data_factory.recover_BALL_and_A(
-        valid_data['A'][:FLAGS.batch_size * n_batch])
+        target_data['A'][:FLAGS.n_conditions])
     results_real_B = data_factory.recover_B(
-        valid_data['B'][:FLAGS.batch_size * n_batch])
+        target_data['B'][:FLAGS.n_conditions])
     results_A_real_B = np.concatenate([results_A, results_real_B], axis=-1)
     # saved as numpy
     print(np.array(results_A_fake_B).shape)
     print(np.array(results_A_real_B).shape)
     print(np.array(results_critic_scores).shape)
     np.save(save_path + 'results_A_fake_B.npy',
-            np.array(results_A_fake_B).astype(np.float32).reshape([n_latents, FLAGS.batch_size * n_batch, FLAGS.seq_length, 23]))
+            np.array(results_A_fake_B).astype(np.float32).reshape([n_latents, FLAGS.n_conditions, FLAGS.seq_length, 23]))
     np.save(save_path + 'results_A_real_B.npy',
-            np.array(results_A_real_B).astype(np.float32).reshape([FLAGS.batch_size * n_batch, FLAGS.seq_length, 23]))
+            np.array(results_A_real_B).astype(np.float32).reshape([FLAGS.n_conditions, FLAGS.seq_length, 23]))
     np.save(save_path + 'results_critic_scores.npy',
-            np.array(results_critic_scores).astype(np.float32).reshape([n_latents, FLAGS.batch_size * n_batch]))
+            np.array(results_critic_scores).astype(np.float32).reshape([n_latents, FLAGS.n_conditions]))
     print('!!Completely Saved!!')
 
 
