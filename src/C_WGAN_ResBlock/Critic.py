@@ -17,21 +17,21 @@ import Libs as libs
 
 
 class C_MODEL(object):
-    """ 
+    """
     """
 
     def __init__(self, config, graph):
         """ TO build up the graph
         Inputs
         ------
-        config : 
+        config :
             * batch_size : mini batch size
             * log_dir : path to save training summary
             * learning_rate : adam's learning rate
             * seq_length : length of LSTM
             * latent_dims : dimensions of latent feature
             * penalty_lambda = gradient penalty's weight, ref from  paper of 'improved-wgan'
-        graph : 
+        graph :
             tensorflow default graph
         """
         self.data_factory = DataFactory()
@@ -49,6 +49,8 @@ class C_MODEL(object):
         self.heuristic_penalty_lambda = config.heuristic_penalty_lambda
         self.if_use_mismatched = config.if_use_mismatched
         self.if_trainable_lambda = config.if_trainable_lambda
+        self.n_filters = config.n_filters
+
         # steps
         self.__global_steps = tf.train.get_or_create_global_step(graph=graph)
         self.__steps = tf.get_variable('C_steps', shape=[
@@ -129,7 +131,7 @@ class C_MODEL(object):
             with tf.variable_scope('conv_input') as scope:
                 conv_input = tf.layers.conv1d(
                     inputs=concat_,
-                    filters=256,
+                    filters=self.n_filters,
                     kernel_size=5,
                     strides=1,
                     padding='same',
@@ -142,11 +144,11 @@ class C_MODEL(object):
             next_input = conv_input
             for i in range(self.n_resblock):
                 res_block = libs.residual_block(
-                    'Res' + str(i), next_input, n_layers=2, residual_alpha=self.residual_alpha, leaky_relu_alpha=self.leaky_relu_alpha)
+                    'Res' + str(i), next_input, n_filters=self.n_filters, n_layers=2, residual_alpha=self.residual_alpha, leaky_relu_alpha=self.leaky_relu_alpha)
                 next_input = res_block
                 # print(next_input)
             with tf.variable_scope('conv_output') as scope:
-                normed = layers.layer_norm(next_input)                
+                normed = layers.layer_norm(next_input)
                 conv_output = tf.layers.conv1d(
                     inputs=normed,
                     filters=1,
@@ -175,7 +177,6 @@ class C_MODEL(object):
                     linear_result, shape=[self.batch_size])
                 # print(final_)
             with tf.name_scope('heuristic_penalty') as scope:
-                # 0. prepare data
                 ball_pos = tf.reshape(conds[:, :, :2], shape=[
                                       self.batch_size, self.seq_length, 1, 2])
                 teamB_pos = tf.reshape(
@@ -204,12 +205,15 @@ class C_MODEL(object):
                     heuristic_penalty_all, axis=-1)
                 heuristic_penalty = tf.reduce_mean(heuristic_penalty_min)
 
-                if self.if_trainable_lambda:
-                    trainable_lambda = tf.get_variable('trainable_heuristic_penalty_lambda', shape=[
-                    ], dtype=tf.float32, initializer=tf.constant_initializer(value=1.0))
-                else:
-                    trainable_lambda = tf.constant(
-                        self.heuristic_penalty_lambda)
+            if self.if_trainable_lambda:
+                trainable_lambda = tf.get_variable('trainable_heuristic_penalty_lambda', shape=[
+                ], dtype=tf.float32, initializer=tf.constant_initializer(value=10.0))
+                final_ = final_ * (1 + trainable_lambda * heuristic_penalty)
+
+            else:
+                trainable_lambda = tf.constant(
+                    self.heuristic_penalty_lambda)
+                final_ = final_ + trainable_lambda * heuristic_penalty
 
             # logging
             if if_log_scalar_summary:
@@ -219,7 +223,7 @@ class C_MODEL(object):
                     tf.summary.scalar('trainable_lambda',
                                       trainable_lambda, collections=['C'])
 
-            return final_ - trainable_lambda * heuristic_penalty
+            return final_
 
     def __loss_fn(self, real_data, G_sample, fake_scores, real_scores, penalty_lambda):
         """ C loss

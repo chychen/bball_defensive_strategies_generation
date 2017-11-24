@@ -47,12 +47,14 @@ class G_MODEL(object):
         self.if_feed_extra_info = config.if_feed_extra_info
         self.residual_alpha = config.residual_alpha
         self.leaky_relu_alpha = config.leaky_relu_alpha
+        self.n_filters = config.n_filters
+
         # steps
         self.__global_steps = tf.train.get_or_create_global_step(graph=graph)
         self.__steps = tf.get_variable('G_steps', shape=[
         ], dtype=tf.int32, initializer=tf.zeros_initializer(dtype=tf.int32), trainable=False)
         tf.summary.scalar('G_steps',
-                            self.__steps, collections=['G'])
+                          self.__steps, collections=['G'])
         # IO
         self.critic = critic_inference
         self.__z = tf.placeholder(dtype=tf.float32, shape=[
@@ -126,7 +128,7 @@ class G_MODEL(object):
             with tf.variable_scope('conds_linear') as scope:
                 conds_linear = layers.fully_connected(
                     inputs=input_,
-                    num_outputs=256,
+                    num_outputs=self.n_filters,
                     activation_fn=None,
                     weights_initializer=layers.xavier_initializer(
                         uniform=False),
@@ -136,7 +138,7 @@ class G_MODEL(object):
             with tf.variable_scope('latents_linear') as scope:
                 latents_linear = layers.fully_connected(
                     inputs=latents,
-                    num_outputs=256,
+                    num_outputs=self.n_filters,
                     activation_fn=None,
                     weights_initializer=layers.xavier_initializer(
                         uniform=False),
@@ -144,13 +146,13 @@ class G_MODEL(object):
                     scope=scope
                 )
             latents_linear = tf.reshape(latents_linear, shape=[
-                                        self.batch_size, 1, 256])
+                                        self.batch_size, 1, self.n_filters])
             next_input = tf.add(conds_linear, latents_linear)
             # print(next_input)
             # residual block
             for i in range(self.n_resblock):
                 res_block = libs.residual_block(
-                    'Res' + str(i), next_input, n_layers=2, residual_alpha=self.residual_alpha, leaky_relu_alpha=self.leaky_relu_alpha)
+                    'Res' + str(i), next_input, n_filters=self.n_filters, n_layers=2, residual_alpha=self.residual_alpha, leaky_relu_alpha=self.leaky_relu_alpha)
                 next_input = res_block
                 # print(next_input)
             with tf.variable_scope('conv_result') as scope:
@@ -203,7 +205,7 @@ class G_MODEL(object):
         # log
         self.summary_writer.add_summary(
             summary, global_step=global_steps)
-        if (steps-1) % 200 == 0:
+        if (steps - 1) % 200 == 0:
             summary, summary_trainable = sess.run(
                 [self.__summary_weight_op, self.__summary_histogram_op], feed_dict=feed_dict)
             self.summary_writer.add_summary(

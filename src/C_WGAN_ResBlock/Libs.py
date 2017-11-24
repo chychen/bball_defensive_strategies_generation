@@ -13,16 +13,17 @@ def leaky_relu(features, leaky_relu_alpha=0.2):
     return tf.maximum(features, leaky_relu_alpha * features)
 
 
-def residual_block(name, inputs, n_layers=2, residual_alpha=1.0, leaky_relu_alpha=0.2):
+def residual_block(name, inputs, n_filters, n_layers=2, residual_alpha=1.0, leaky_relu_alpha=0.2):
     with tf.variable_scope(name):
         next_input = inputs
         for i in range(n_layers):
             with tf.variable_scope('conv' + str(i)) as scope:
                 normed = layers.layer_norm(next_input)
-                nonlinear = leaky_relu(normed, leaky_relu_alpha=leaky_relu_alpha)
+                nonlinear = leaky_relu(
+                    normed, leaky_relu_alpha=leaky_relu_alpha)
                 conv = tf.layers.conv1d(
                     inputs=nonlinear,
-                    filters=256,
+                    filters=n_filters,
                     kernel_size=5,
                     strides=1,
                     padding='same',
