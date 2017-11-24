@@ -208,8 +208,8 @@ class C_MODEL(object):
             if self.if_trainable_lambda:
                 trainable_lambda = tf.get_variable('trainable_heuristic_penalty_lambda', shape=[
                 ], dtype=tf.float32, initializer=tf.constant_initializer(value=10.0))
-                final_ = final_ * (1 + trainable_lambda * heuristic_penalty)
-
+                final_ = final_ + tf.abs(final_) * \
+                    trainable_lambda * heuristic_penalty
             else:
                 trainable_lambda = tf.constant(
                     self.heuristic_penalty_lambda)
