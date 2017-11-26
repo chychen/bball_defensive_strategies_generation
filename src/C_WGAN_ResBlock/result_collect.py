@@ -42,7 +42,7 @@ tf.app.flags.DEFINE_string('gpus', '0',
                            "define visible gpus")
 tf.app.flags.DEFINE_integer('batch_size', 128,
                             "batch size")
-tf.app.flags.DEFINE_integer('latent_dims', 10,
+tf.app.flags.DEFINE_integer('latent_dims', 100,
                             "latent_dims")
 # collect mode
 tf.app.flags.DEFINE_integer('n_latents', 100,
@@ -55,7 +55,8 @@ tf.app.flags.DEFINE_integer('mode', None,
                             "mode to collect, \
                            1 -> to collect results \
                            2 -> to show diversity \
-                           3 -> weight visualization")
+                           3 -> weight visualization \
+                           4 -> to show diversity")
 
 # VISIBLE GPUS
 os.environ['CUDA_VISIBLE_DEVICES'] = FLAGS.gpus
@@ -155,6 +156,102 @@ def mode_1(sess, graph, save_path, is_valid=FLAGS.is_valid):
 
 
 def mode_2(sess, graph, save_path, is_valid=FLAGS.is_valid):
+    """ to show diversity, only changing first dimension
+    Saved Result
+    ------------
+    results_A_fake_B : float, numpy ndarray, shape=[latent_dims=10, n_latents=11, n_conditions=128, length=100, features=23]
+        Real A + Fake B
+    results_A_real_B : float, numpy ndarray, shape=[n_conditions=128, length=100, features=23]
+        Real A + Real B
+    results_critic_scores : float, numpy ndarray, shape=[latent_dims=10, n_latents=11, n_conditions=128]
+        critic scores for each input data
+    """
+    n_latents = 11
+    latent_dims = 10
+    # placeholder tensor
+    latent_input_t = graph.get_tensor_by_name('latent_input:0')
+    team_a_t = graph.get_tensor_by_name('team_a:0')
+    G_samples_t = graph.get_tensor_by_name('G_samples:0')
+    matched_cond_t = graph.get_tensor_by_name('matched_cond:0')
+    # result tensor
+    result_t = graph.get_tensor_by_name(
+        'Generator/G_inference/conv_result/conv1d/Maximum:0')
+    critic_scores_t = graph.get_tensor_by_name(
+        'Critic/C_inference_1/linear_result/BiasAdd:0')
+    # 'Generator/G_loss/C_inference/linear_result/Reshape:0')
+
+    if not os.path.exists(save_path):
+        os.makedirs(save_path)
+
+    real_data = np.load(FLAGS.data_path)[:, :FLAGS.seq_length, :, :]
+    print('real_data.shape', real_data.shape)
+    # normalize
+    data_factory = DataFactory(real_data)
+    # result collector
+    results_A_fake_B = []
+    results_A_real_B = []
+    results_critic_scores = []
+
+    # shuffle the data
+    train_data, valid_data = data_factory.fetch_data()
+    if is_valid:
+        target_data = valid_data
+    else:
+        target_data = train_data
+    latents = z_samples(FLAGS.batch_size)
+
+    real_samples = target_data['B'][:512:4]
+    real_conds = target_data['A'][:512:4]
+    # generate result
+    for target_dim in range(latent_dims):
+        temp_critic_scores = []
+        temp_A_fake_B = []
+        for i in range(n_latents):
+            latents[:, target_dim] = -2.5 + 0.5 * i
+            latents[:, target_dim + 1] = -2.5 + 0.5 * i
+            latents[:, target_dim + 2] = -2.5 + 0.5 * i
+            latents[:, target_dim + 3] = -2.5 + 0.5 * i
+            latents[:, target_dim + 4] = -2.5 + 0.5 * i
+            # latents = z_samples(FLAGS.batch_size)
+            feed_dict = {
+                latent_input_t: latents,
+                team_a_t: real_conds
+            }
+            result = sess.run(
+                result_t, feed_dict=feed_dict)
+            feed_dict = {
+                G_samples_t: result,
+                matched_cond_t: real_conds
+            }
+            critic_scores = sess.run(
+                critic_scores_t, feed_dict=feed_dict)
+            temp_A_fake_B.append(data_factory.recover_data(
+                np.concatenate([real_conds, result], axis=-1)))
+            temp_critic_scores.append(critic_scores)
+        results_A_fake_B.append(temp_A_fake_B)
+        results_critic_scores.append(temp_critic_scores)
+    # concat along with conditions dimension
+    results_A_fake_B = np.concatenate(results_A_fake_B, axis=0)
+    results_critic_scores = np.concatenate(results_critic_scores, axis=0)
+    results_A = data_factory.recover_BALL_and_A(
+        target_data['A'][:512:4])
+    results_real_B = data_factory.recover_B(
+        target_data['B'][:512:4])
+    results_A_real_B = np.concatenate([results_A, results_real_B], axis=-1)
+    # saved as numpy
+    print(np.array(results_A_fake_B).shape)
+    print(np.array(results_A_real_B).shape)
+    print(np.array(results_critic_scores).shape)
+    np.save(save_path + 'results_A_fake_B.npy',
+            np.array(results_A_fake_B).astype(np.float32).reshape([latent_dims, n_latents, 128, FLAGS.seq_length, 23]))
+    np.save(save_path + 'results_A_real_B.npy',
+            np.array(results_A_real_B).astype(np.float32).reshape([128, FLAGS.seq_length, 23]))
+    np.save(save_path + 'results_critic_scores.npy',
+            np.array(results_critic_scores).astype(np.float32).reshape([latent_dims, n_latents, 128]))
+    print('!!Completely Saved!!')
+
+
+def mode_4(sess, graph, save_path, is_valid=FLAGS.is_valid):
     """ to show diversity, only changing first dimension
     Saved Result
     ------------
@@ -264,6 +361,9 @@ def main(_):
             elif FLAGS.mode == 3:
                 weight_vis(graph, save_path=os.path.join(
                     COLLECT_PATH, 'mode_3/'))
+            elif FLAGS.mode == 4:
+                mode_4(sess, graph, save_path=os.path.join(
+                    COLLECT_PATH, 'mode_4/'))
 
 
 if __name__ == '__main__':
