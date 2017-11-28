@@ -1,3 +1,4 @@
+
 """
 """
 from __future__ import absolute_import
@@ -197,9 +198,24 @@ class DataFactory(object):
                 norm_dict[axis_]['stddev'] = stddev_
         return norm_dict
 
+    def normalize(self, input_):
+        """ normalize player x,y,z on input
+        input_ : shape=[128, 100, 23]
+        """
+        # x
+        input_[:, :, [0, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21]] = (
+            input_[:, :, [0, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21]] - self.__norm_dict['x']['mean']) / self.__norm_dict['x']['stddev']
+        # y
+        input_[:, :, [1, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22]] = (
+            input_[:, :, [1, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22]] - self.__norm_dict['y']['mean']) / self.__norm_dict['y']['stddev']
+        # z
+        input_[:, :, 2:3] = (input_[:, :, 2:3] - self.__norm_dict['z']
+                             ['mean']) / self.__norm_dict['z']['stddev']
+        return input_
 
 def testing_real():
     pass
+
 
 if __name__ == '__main__':
     testing_real()

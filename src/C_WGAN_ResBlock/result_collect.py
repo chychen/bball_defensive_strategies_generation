@@ -56,7 +56,8 @@ tf.app.flags.DEFINE_integer('mode', None,
                            1 -> to collect results \
                            2 -> to show diversity \
                            3 -> weight visualization \
-                           4 -> to show diversity")
+                           4 -> to show diversity \
+                           5 -> calculate hueristic score")
 
 # VISIBLE GPUS
 os.environ['CUDA_VISIBLE_DEVICES'] = FLAGS.gpus
@@ -73,7 +74,7 @@ def mode_1(sess, graph, save_path, is_valid=FLAGS.is_valid):
     ------------
     results_A_fake_B : float, numpy ndarray, shape=[n_latents=100, n_conditions=128*9, length=100, features=23]
         Real A + Fake B
-    results_A_real_B : float, numpy ndarray, shape=[n_latents=100, n_conditions=128*9, length=100, features=23]
+    results_A_real_B : float, numpy ndarray, shape=[n_conditions=128*9, length=100, features=23]
         Real A + Real B
     results_critic_scores : float, numpy ndarray, shape=[n_latents=100, n_conditions=128*9]
         critic scores for each input data
@@ -166,8 +167,8 @@ def mode_2(sess, graph, save_path, is_valid=FLAGS.is_valid):
     results_critic_scores : float, numpy ndarray, shape=[latent_dims=10, n_latents=11, n_conditions=128]
         critic scores for each input data
     """
-    n_latents = 11
-    latent_dims = 10
+    n_latents = 100
+    latent_dims = 1
     # placeholder tensor
     latent_input_t = graph.get_tensor_by_name('latent_input:0')
     team_a_t = graph.get_tensor_by_name('team_a:0')
@@ -207,12 +208,12 @@ def mode_2(sess, graph, save_path, is_valid=FLAGS.is_valid):
         temp_critic_scores = []
         temp_A_fake_B = []
         for i in range(n_latents):
-            latents[:, target_dim] = -2.5 + 0.5 * i
-            latents[:, target_dim + 1] = -2.5 + 0.5 * i
-            latents[:, target_dim + 2] = -2.5 + 0.5 * i
-            latents[:, target_dim + 3] = -2.5 + 0.5 * i
-            latents[:, target_dim + 4] = -2.5 + 0.5 * i
-            # latents = z_samples(FLAGS.batch_size)
+            # latents[:, target_dim] = -2.5 + 0.5 * i
+            # latents[:, target_dim + 1] = -2.5 + 0.5 * i
+            # latents[:, target_dim + 2] = -2.5 + 0.5 * i
+            # latents[:, target_dim + 3] = -2.5 + 0.5 * i
+            # latents[:, target_dim + 4] = -2.5 + 0.5 * i
+            latents = z_samples(FLAGS.batch_size)
             feed_dict = {
                 latent_input_t: latents,
                 team_a_t: real_conds
@@ -248,6 +249,42 @@ def mode_2(sess, graph, save_path, is_valid=FLAGS.is_valid):
             np.array(results_A_real_B).astype(np.float32).reshape([128, FLAGS.seq_length, 23]))
     np.save(save_path + 'results_critic_scores.npy',
             np.array(results_critic_scores).astype(np.float32).reshape([latent_dims, n_latents, 128]))
+    print('!!Completely Saved!!')
+
+
+def weight_vis(graph, save_path):
+    """ draw heat map on particular layers's weight
+    """
+    if not os.path.exists(save_path):
+        os.makedirs(save_path)
+
+    def __get_var_list(tag):
+        """ to get both Generator's and Discriminator's trainable variables
+        and add trainable variables into histogram
+        """
+        trainable_V = tf.trainable_variables()
+        for _, v in enumerate(trainable_V):
+            if tag in v.name:
+                return v
+    # sesstion config
+    config = tf.ConfigProto()
+    config.gpu_options.allow_growth = True
+    saver = tf.train.import_meta_graph(FLAGS.restore_path + '.meta')
+    with tf.Session(config=config) as sess:
+        # restored
+        saver.restore(sess, FLAGS.restore_path)
+        # target tensor
+        conds_linear = __get_var_list('G_inference/conds_linear')
+        latents_linear = __get_var_list('G_inference/latents_linear')
+        print(conds_linear.shape)
+        print(latents_linear.shape)
+        conds_linear_result, latents_linear_result = sess.run(
+            [conds_linear, latents_linear])
+        trace = go.Heatmap(z=np.concatenate(
+            [conds_linear_result, latents_linear_result], axis=0))
+        data = [trace]
+        plotly.offline.plot(data, filename=os.path.join(
+            save_path, 'G_inference_input.html'))
     print('!!Completely Saved!!')
 
 
@@ -342,6 +379,72 @@ def mode_4(sess, graph, save_path, is_valid=FLAGS.is_valid):
     print('!!Completely Saved!!')
 
 
+def mode_5(sess, graph, save_path):
+    """ 
+    """
+    NORMAL_C_ID = [154, 108, 32, 498, 2, 513, 263, 29, 439, 249, 504, 529, 24, 964, 641, 739, 214, 139, 819, 1078, 772, 349, 676, 1016, 582, 678, 39, 279,
+                   918, 477, 809, 505, 896, 600, 564, 50, 810, 1132, 683, 578, 1131, 887, 621, 1097, 665, 528, 310, 631, 1102, 6, 945, 1020, 853, 490, 64, 1002, 656]
+    NORMAL_N_ID = [58, 5, 47, 66, 79, 21, 70, 54, 3, 59, 67, 59, 84, 38, 71, 62, 55, 86, 14, 83, 94, 97, 83, 27, 38, 68, 95,
+                   26, 60, 2, 54, 46, 34, 75, 38, 4, 59, 87, 52, 44, 92, 28, 86, 71, 24, 28, 13, 70, 87, 44, 52, 25, 59, 61, 86, 16, 98]
+    GOOD_C_ID = [976, 879, 293, 750, 908, 878, 831, 1038, 486, 268,
+                 265, 252, 1143, 383, 956, 974, 199, 777, 585, 34, 932]
+    GOOD_N_ID = [52, 16, 87, 43, 45, 66, 22, 77, 36,
+                 50, 47, 9, 34, 9, 82, 42, 65, 43, 7, 29, 62]
+    BEST_C_ID = [570, 517, 962, 1088, 35, 623, 1081, 33, 255, 571,
+                 333, 990, 632, 431, 453, 196, 991, 267, 591, 902, 597, 646]
+    BEST_N_ID = [22, 42, 76, 92, 12, 74, 92, 58, 69, 69,
+                 23, 63, 89, 7, 74, 27, 12, 20, 35, 77, 62, 63]
+
+    DUMMY_ID = np.zeros(shape=[28])
+    ALL_C_ID = np.concatenate(
+        [NORMAL_C_ID, GOOD_C_ID, BEST_C_ID, DUMMY_ID]).astype(np.int32)
+    ALL_N_ID = np.concatenate(
+        [NORMAL_N_ID, GOOD_N_ID, BEST_N_ID, DUMMY_ID]).astype(np.int32)
+    print(ALL_C_ID.shape)
+    print(ALL_N_ID.shape)
+    fake_result_AB = np.load(
+        'v3/2/collect/mode_1/results_A_fake_B.npy')[ALL_N_ID, ALL_C_ID]
+    real_result_AB = np.load(
+        'v3/2/collect/mode_1/results_A_real_B.npy')[ALL_C_ID]
+    print(fake_result_AB.shape)
+    print(real_result_AB.shape)
+
+    # normalize
+    real_data = np.load(FLAGS.data_path)[:, :FLAGS.seq_length, :, :]
+    print('real_data.shape', real_data.shape)
+    data_factory = DataFactory(real_data)
+    fake_result_AB = data_factory.normalize(fake_result_AB)
+    real_result_AB = data_factory.normalize(real_result_AB)
+
+    # placeholder tensor
+    real_data_t = graph.get_tensor_by_name('real_data:0')
+    matched_cond_t = graph.get_tensor_by_name('matched_cond:0')
+    # result tensor
+    heuristic_penalty_pframe = graph.get_tensor_by_name(
+        'Critic/C_inference/heuristic_penalty/Min:0')
+    # 'Generator/G_loss/C_inference/linear_result/Reshape:0')
+
+    if not os.path.exists(save_path):
+        os.makedirs(save_path)
+    # real
+    feed_dict = {
+        real_data_t: real_result_AB[:, :, 13:23],
+        matched_cond_t: real_result_AB[:, :, :13]
+    }
+    real_hp_pframe = sess.run(heuristic_penalty_pframe, feed_dict=feed_dict)
+
+    # fake
+    feed_dict = {
+        real_data_t: fake_result_AB[:, :, 13:23],
+        matched_cond_t: fake_result_AB[:, :, :13]
+    }
+    fake_hp_pframe = sess.run(heuristic_penalty_pframe, feed_dict=feed_dict)
+
+    print(np.mean(real_hp_pframe[:100]))
+    print(np.mean(fake_hp_pframe[:100]))
+    print('!!Completely Saved!!')
+
+
 def main(_):
     with tf.get_default_graph().as_default() as graph:
         # sesstion config
@@ -364,6 +467,9 @@ def main(_):
             elif FLAGS.mode == 4:
                 mode_4(sess, graph, save_path=os.path.join(
                     COLLECT_PATH, 'mode_4/'))
+            elif FLAGS.mode == 5:
+                mode_5(sess, graph, save_path=os.path.join(
+                    COLLECT_PATH, 'mode_5/'))
 
 
 if __name__ == '__main__':
