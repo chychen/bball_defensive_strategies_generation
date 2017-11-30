@@ -116,10 +116,11 @@ def test():
     """
     train_data = np.load(opt.data_path)
     data_factory = DataFactory(train_data)
-    train_data = data_factory.fetch_ori_data()
-    train_data = data_factory.recover_data(train_data)
+    train_data, _ = data_factory.fetch_data()
+    target_data = np.concatenate([train_data['A'], train_data['B']], axis=-1)
+    target_data = data_factory.recover_data(target_data)
     for i in range(opt.amount):
-        plot_data(results_data[i], length=100,
+        plot_data(target_data[i], length=100,
                   file_path=opt.save_path + 'play_' + str(i) + '.mp4', if_save=opt.save)
 
     # # cmd e.g. python game_visualizer.py --data_path='../../data/collect/mode_6/results_A_fake_B.npy' --save_path='../../data/collect/try/' --amount=10
