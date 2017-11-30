@@ -59,11 +59,11 @@ class C_MODEL(object):
                           self.__steps, collections=['C'])
         # data
         self.__G_samples = tf.placeholder(dtype=tf.float32, shape=[
-            self.batch_size, self.seq_length, 10], name='G_samples')
+            None, self.seq_length, 10], name='G_samples')
         self.__real_data = tf.placeholder(dtype=tf.float32, shape=[
-            self.batch_size, self.seq_length, 10], name='real_data')
+            None, self.seq_length, 10], name='real_data')
         self.__matched_cond = tf.placeholder(dtype=tf.float32, shape=[
-            self.batch_size, self.seq_length, 13], name='matched_cond')
+            None, self.seq_length, 13], name='matched_cond')
         self.__mismatched_cond = tf.random_shuffle(self.__matched_cond)
         # adversarial learning : wgan
         self.__build_model()
@@ -149,8 +149,9 @@ class C_MODEL(object):
                 # print(next_input)
             with tf.variable_scope('conv_output') as scope:
                 normed = layers.layer_norm(next_input)
+                nonlinear = libs.leaky_relu(normed)
                 conv_output = tf.layers.conv1d(
-                    inputs=normed,
+                    inputs=nonlinear,
                     filters=1,
                     kernel_size=5,
                     strides=1,
@@ -159,22 +160,23 @@ class C_MODEL(object):
                     kernel_initializer=layers.xavier_initializer(),
                     bias_initializer=tf.zeros_initializer()
                 )
-                # print(conv_output) TODO
+                # print(conv_output)
             with tf.variable_scope('linear_result') as scope:
                 normed = layers.layer_norm(conv_output)
                 nonlinear = libs.leaky_relu(normed)
-                flatten_ = layers.flatten(nonlinear)
-                linear_result = layers.fully_connected(
-                    inputs=flatten_,
-                    num_outputs=1,
-                    activation_fn=None,
-                    weights_initializer=layers.xavier_initializer(
-                        uniform=False),
-                    biases_initializer=tf.zeros_initializer(),
-                    scope=scope
+                conv_output = tf.layers.conv1d(
+                    inputs=nonlinear,
+                    filters=1,
+                    kernel_size=self.seq_length,
+                    strides=1,
+                    padding='valid',
+                    activation=libs.leaky_relu,
+                    kernel_initializer=layers.xavier_initializer(),
+                    bias_initializer=tf.zeros_initializer()
                 )
+                conv_output = tf.reduce_mean(conv_output, axis=1)
                 final_ = tf.reshape(
-                    linear_result, shape=[self.batch_size])
+                    conv_output, shape=[-1])
                 # print(final_)
             with tf.name_scope('heuristic_penalty') as scope:
                 ball_pos = tf.reshape(conds[:, :, :2], shape=[

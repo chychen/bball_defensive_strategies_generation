@@ -57,7 +57,8 @@ tf.app.flags.DEFINE_integer('mode', None,
                            2 -> to show diversity \
                            3 -> weight visualization \
                            4 -> to show diversity \
-                           5 -> calculate hueristic score")
+                           5 -> calculate hueristic score \
+                           6 -> draw overlap result")
 
 # VISIBLE GPUS
 os.environ['CUDA_VISIBLE_DEVICES'] = FLAGS.gpus
@@ -380,7 +381,7 @@ def mode_4(sess, graph, save_path, is_valid=FLAGS.is_valid):
 
 
 def mode_5(sess, graph, save_path):
-    """ 
+    """
     """
     NORMAL_C_ID = [154, 108, 32, 498, 2, 513, 263, 29, 439, 249, 504, 529, 24, 964, 641, 739, 214, 139, 819, 1078, 772, 349, 676, 1016, 582, 678, 39, 279,
                    918, 477, 809, 505, 896, 600, 564, 50, 810, 1132, 683, 578, 1131, 887, 621, 1097, 665, 528, 310, 631, 1102, 6, 945, 1020, 853, 490, 64, 1002, 656]
@@ -445,6 +446,112 @@ def mode_5(sess, graph, save_path):
     print('!!Completely Saved!!')
 
 
+def mode_6(sess, graph, save_path):
+    """ draw overlap result
+    """
+    # normalize
+    real_data = np.load(FLAGS.data_path)[:, :FLAGS.seq_length, :, :]
+    print('real_data.shape', real_data.shape)
+    data_factory = DataFactory(real_data)
+    target_data = np.concatenate([np.load('FEATURES-5.npy')[:6] for i in range(2)],axis=1)
+    team_AB = np.concatenate(
+        [
+            # ball
+            target_data[:, :, 0, :3].reshape(
+                [target_data.shape[0], target_data.shape[1], 1 * 3]),
+            # team A players
+            target_data[:, :, 1:6, :2].reshape(
+                [target_data.shape[0], target_data.shape[1], 5 * 2]),
+            # team B players
+            target_data[:, :, 6:11, :2].reshape(
+                [target_data.shape[0], target_data.shape[1], 5 * 2])
+        ], axis=-1
+    )
+    dummy_AB = np.zeros(shape=[128 - 6, 200, 23])
+    team_AB = np.concatenate([team_AB, dummy_AB], axis=0)
+    team_AB = data_factory.normalize(team_AB)
+    team_A = team_AB[:, :, :13]
+    team_B = team_AB[:, :, 13:]
+    # placeholder tensor
+    latent_input_t = graph.get_tensor_by_name('latent_input:0')
+    team_a_t = graph.get_tensor_by_name('team_a:0')
+    # result tensor
+    result_t = graph.get_tensor_by_name(
+        'Generator/G_inference/conv_result/conv1d/Maximum:0')
+
+    if not os.path.exists(save_path):
+        os.makedirs(save_path)
+
+    # result collector
+    latents = z_samples(1)
+    latents = np.concatenate([latents for i in range(FLAGS.batch_size)], axis=0)
+    feed_dict = {
+        latent_input_t: latents,
+        team_a_t: team_A
+    }
+    result_fake_B = sess.run(result_t, feed_dict=feed_dict)
+    results_A_fake_B = np.concatenate([team_A, result_fake_B], axis=-1)
+    results_A_fake_B = data_factory.recover_data(results_A_fake_B)
+    for i in range(6):
+        game_visualizer.plot_data(
+            results_A_fake_B[i:, 10 * (6 - i):], FLAGS.seq_length*2 - 60, file_path=save_path + str(i) + '.mp4', if_save=True)
+
+    print('!!Completely Saved!!')
+
+
+def mode_7(sess, graph, save_path):
+    """ draw overlap condtion feature map
+    """
+    # normalize
+    real_data = np.load(FLAGS.data_path)[:, :FLAGS.seq_length, :, :]
+    print('real_data.shape', real_data.shape)
+    data_factory = DataFactory(real_data)
+    target_data = np.load('FEATURES-6.npy')[:6]
+    team_AB = np.concatenate(
+        [
+            # ball
+            target_data[:, :, 0, :3].reshape(
+                [target_data.shape[0], target_data.shape[1], 1 * 3]),
+            # team A players
+            target_data[:, :, 1:6, :2].reshape(
+                [target_data.shape[0], target_data.shape[1], 5 * 2]),
+            # team B players
+            target_data[:, :, 6:11, :2].reshape(
+                [target_data.shape[0], target_data.shape[1], 5 * 2])
+        ], axis=-1
+    )
+    dummy_AB = np.zeros(shape=[128 - 6, 100, 23])
+    team_AB = np.concatenate([team_AB, dummy_AB], axis=0)
+    team_AB = data_factory.normalize(team_AB)
+    team_A = team_AB[:, :, :13]
+    team_B = team_AB[:, :, 13:]
+    # placeholder tensor
+    latent_input_t = graph.get_tensor_by_name('latent_input:0')
+    team_a_t = graph.get_tensor_by_name('team_a:0')
+    # result tensor
+    conds_linear_t = graph.get_tensor_by_name(
+        'Generator/G_inference/conds_linear/BiasAdd:0')
+
+    if not os.path.exists(save_path):
+        os.makedirs(save_path)
+
+    # result collector
+    latents = np.concatenate([z_samples(1)
+                              for i in range(FLAGS.batch_size)], axis=0)
+    feed_dict = {
+        latent_input_t: latents,
+        team_a_t: team_A
+    }
+    conds_linear = sess.run(conds_linear_t, feed_dict=feed_dict)
+    for i in range(6):
+        trace = go.Heatmap(z=conds_linear[i])
+        data = [trace]
+        plotly.offline.plot(data, filename=os.path.join(
+            save_path, 'G_conds_linear' + str(i) + '.html'))
+
+    print('!!Completely Saved!!')
+
+
 def main(_):
     with tf.get_default_graph().as_default() as graph:
         # sesstion config
@@ -470,6 +577,12 @@ def main(_):
             elif FLAGS.mode == 5:
                 mode_5(sess, graph, save_path=os.path.join(
                     COLLECT_PATH, 'mode_5/'))
+            elif FLAGS.mode == 6:
+                mode_6(sess, graph, save_path=os.path.join(
+                    COLLECT_PATH, 'mode_6/'))
+            elif FLAGS.mode == 7:
+                mode_7(sess, graph, save_path=os.path.join(
+                    COLLECT_PATH, 'mode_7/'))
 
 
 if __name__ == '__main__':

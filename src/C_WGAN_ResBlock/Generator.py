@@ -58,9 +58,9 @@ class G_MODEL(object):
         # IO
         self.critic = critic_inference
         self.__z = tf.placeholder(dtype=tf.float32, shape=[
-            self.batch_size, self.latent_dims], name='latent_input')
+            None, self.latent_dims], name='latent_input')
         self.__cond = tf.placeholder(dtype=tf.float32, shape=[
-            self.batch_size, self.seq_length, 13], name='team_a')
+            None, None, 13], name='team_a')
         # adversarial learning : wgan
         self.__build_model()
 
