@@ -1,5 +1,6 @@
 """
-restore one critic as coach to score all different result of hyper-parameters
+restore one critic as coach to serach best hyper-parameters
+<Deprecated>
 """
 from __future__ import absolute_import
 from __future__ import division
@@ -17,10 +18,7 @@ from Generator import G_MODEL
 from Critic import C_MODEL
 
 FLAGS = tf.app.flags.FLAGS
-
-
 # path parameters
-# TODO read params from checkpoints directory (hyper_parameters.json)
 tf.app.flags.DEFINE_string('folder_path', None,
                            "summary directory")
 tf.app.flags.DEFINE_string('restore_path', None,
@@ -39,9 +37,9 @@ def scoring(sess, table, cond_A, fake_B, graph):
     inputs
     ------
     sess : 
-    table : 
+    table : dict
     cond_A : 
-    fake_B : 
+    fake_B : ß
 
     """
     # placeholder tensor
@@ -70,7 +68,6 @@ def scoring(sess, table, cond_A, fake_B, graph):
 
 
 def main(_):
-
     with tf.get_default_graph().as_default() as graph:
         # sesstion config
         config = tf.ConfigProto()

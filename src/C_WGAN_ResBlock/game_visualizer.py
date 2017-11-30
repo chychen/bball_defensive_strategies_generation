@@ -36,7 +36,6 @@ def update_all(frame_id, player_circles, ball_circle, annotations, data):
         circle.center = data[frame_id // max_length, frame_id %
                              max_length, 3 + j * 2 + 0], data[frame_id // max_length, frame_id % max_length, 3 + j * 2 + 1]
         annotations[j].set_position(circle.center)
-    # print("Frame:", frame_id)
     # ball
     ball_circle.center = data[frame_id // max_length, frame_id %
                               max_length, 0], data[frame_id // max_length, frame_id % max_length, 1]
@@ -98,8 +97,12 @@ def plot_data(data, length, file_path=None, if_save=False, fps=4, dpi=128):
 
     plt.imshow(court, zorder=0, extent=[0, 100 - 6, 50, 0])
     if if_save:
-        anim.save(file_path, fps=fps,
-                  dpi=dpi, writer='ffmpeg')
+        if file_path[-3:] == 'mp4':
+            anim.save(file_path, fps=fps,
+                    dpi=dpi, writer='ffmpeg')
+        else:
+            anim.save(file_path, fps=fps,
+                    dpi=dpi, writer='imagemagick')
         print('!!!Animation is saved!!!')
     else:
         plt.show()
@@ -112,23 +115,22 @@ def plot_data(data, length, file_path=None, if_save=False, fps=4, dpi=128):
 
 def test():
     """
-    test only
+    plot real data
     """
-    # train_data = np.load(opt.data_path)
-    # data_factory = DataFactory(train_data)
-    # train_data = data_factory.fetch_ori_data()
-    # train_data = data_factory.recover_data(train_data)
-    # for i in range(opt.amount):
-    #     plot_data(results_data[i:i + 1], length=100,
-    #               file_path=opt.save_path + 'play_' + str(i) + '.mp4', if_save=opt.save)
-
-    # cmd e.g. python game_visualizer.py --data_path='../../data/collect/mode_6/results_A_fake_B.npy' --save_path='../../data/collect/try/' --amount=10
-    results_data = np.load(opt.data_path)
-    print(results_data.shape)
-
+    train_data = np.load(opt.data_path)
+    data_factory = DataFactory(train_data)
+    train_data = data_factory.fetch_ori_data()
+    train_data = data_factory.recover_data(train_data)
     for i in range(opt.amount):
-        plot_data(results_data[i, 1:2], length=100,
+        plot_data(results_data[i:i + 1], length=100,
                   file_path=opt.save_path + 'play_' + str(i) + '.mp4', if_save=opt.save)
+
+    # # cmd e.g. python game_visualizer.py --data_path='../../data/collect/mode_6/results_A_fake_B.npy' --save_path='../../data/collect/try/' --amount=10
+    # results_data = np.load(opt.data_path)
+    # print(results_data.shape)
+    # for i in range(opt.amount):
+    #     plot_data(results_data[i, 1:2], length=100,
+    #               file_path=opt.save_path + 'play_' + str(i) + '.mp4', if_save=opt.save)
     print('opt.save', opt.save)
     print('opt.amount', opt.amount)
     print('opt.seq_length', opt.seq_length)

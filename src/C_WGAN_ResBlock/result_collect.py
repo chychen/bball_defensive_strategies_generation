@@ -55,10 +55,11 @@ tf.app.flags.DEFINE_integer('mode', None,
                             "mode to collect, \
                            1 -> to collect results \
                            2 -> to show diversity \
-                           3 -> weight visualization \
-                           4 -> to show diversity \
-                           5 -> calculate hueristic score \
-                           6 -> draw overlap result")
+                           3 -> to visulize weight \
+                           4 -> to analize code, only change first dimension for comparison \
+                           5 -> to calculate hueristic score on selected result\
+                           6 -> to draw different length result \
+                           7 -> to draw feature map")
 
 # VISIBLE GPUS
 os.environ['CUDA_VISIBLE_DEVICES'] = FLAGS.gpus
@@ -70,7 +71,7 @@ def z_samples(batch_size):
 
 
 def mode_1(sess, graph, save_path, is_valid=FLAGS.is_valid):
-    """ collect results
+    """ to collect results 
     Saved Result
     ------------
     results_A_fake_B : float, numpy ndarray, shape=[n_latents=100, n_conditions=128*9, length=100, features=23]
@@ -158,7 +159,7 @@ def mode_1(sess, graph, save_path, is_valid=FLAGS.is_valid):
 
 
 def mode_2(sess, graph, save_path, is_valid=FLAGS.is_valid):
-    """ to show diversity, only changing first dimension
+    """ to show diversity
     Saved Result
     ------------
     results_A_fake_B : float, numpy ndarray, shape=[latent_dims=10, n_latents=11, n_conditions=128, length=100, features=23]
@@ -200,7 +201,6 @@ def mode_2(sess, graph, save_path, is_valid=FLAGS.is_valid):
         target_data = valid_data
     else:
         target_data = train_data
-    latents = z_samples(FLAGS.batch_size)
 
     real_samples = target_data['B'][:512:4]
     real_conds = target_data['A'][:512:4]
@@ -209,11 +209,6 @@ def mode_2(sess, graph, save_path, is_valid=FLAGS.is_valid):
         temp_critic_scores = []
         temp_A_fake_B = []
         for i in range(n_latents):
-            # latents[:, target_dim] = -2.5 + 0.5 * i
-            # latents[:, target_dim + 1] = -2.5 + 0.5 * i
-            # latents[:, target_dim + 2] = -2.5 + 0.5 * i
-            # latents[:, target_dim + 3] = -2.5 + 0.5 * i
-            # latents[:, target_dim + 4] = -2.5 + 0.5 * i
             latents = z_samples(FLAGS.batch_size)
             feed_dict = {
                 latent_input_t: latents,
@@ -254,7 +249,7 @@ def mode_2(sess, graph, save_path, is_valid=FLAGS.is_valid):
 
 
 def weight_vis(graph, save_path):
-    """ draw heat map on particular layers's weight
+    """ to visulize weight
     """
     if not os.path.exists(save_path):
         os.makedirs(save_path)
@@ -290,7 +285,7 @@ def weight_vis(graph, save_path):
 
 
 def mode_4(sess, graph, save_path, is_valid=FLAGS.is_valid):
-    """ to show diversity, only changing first dimension
+    """ to analize code, only change first dimension for comparison
     Saved Result
     ------------
     results_A_fake_B : float, numpy ndarray, shape=[n_latents=11, n_conditions=128*9, length=100, features=23]
@@ -381,7 +376,7 @@ def mode_4(sess, graph, save_path, is_valid=FLAGS.is_valid):
 
 
 def mode_5(sess, graph, save_path):
-    """
+    """ to calculate hueristic score on selected result
     """
     NORMAL_C_ID = [154, 108, 32, 498, 2, 513, 263, 29, 439, 249, 504, 529, 24, 964, 641, 739, 214, 139, 819, 1078, 772, 349, 676, 1016, 582, 678, 39, 279,
                    918, 477, 809, 505, 896, 600, 564, 50, 810, 1132, 683, 578, 1131, 887, 621, 1097, 665, 528, 310, 631, 1102, 6, 945, 1020, 853, 490, 64, 1002, 656]
@@ -447,13 +442,14 @@ def mode_5(sess, graph, save_path):
 
 
 def mode_6(sess, graph, save_path):
-    """ draw overlap result
+    """ to draw different length result
     """
     # normalize
     real_data = np.load(FLAGS.data_path)[:, :FLAGS.seq_length, :, :]
     print('real_data.shape', real_data.shape)
     data_factory = DataFactory(real_data)
-    target_data = np.concatenate([np.load('FEATURES-5.npy')[:6] for i in range(2)],axis=1)
+    target_data = np.concatenate(
+        [np.load('FEATURES-5.npy')[:6] for i in range(2)], axis=1)
     team_AB = np.concatenate(
         [
             # ball
@@ -484,7 +480,8 @@ def mode_6(sess, graph, save_path):
 
     # result collector
     latents = z_samples(1)
-    latents = np.concatenate([latents for i in range(FLAGS.batch_size)], axis=0)
+    latents = np.concatenate(
+        [latents for i in range(FLAGS.batch_size)], axis=0)
     feed_dict = {
         latent_input_t: latents,
         team_a_t: team_A
@@ -494,13 +491,13 @@ def mode_6(sess, graph, save_path):
     results_A_fake_B = data_factory.recover_data(results_A_fake_B)
     for i in range(6):
         game_visualizer.plot_data(
-            results_A_fake_B[i:, 10 * (6 - i):], FLAGS.seq_length*2 - 60, file_path=save_path + str(i) + '.mp4', if_save=True)
+            results_A_fake_B[i:, 10 * (6 - i):], FLAGS.seq_length * 2 - 60, file_path=save_path + str(i) + '.mp4', if_save=True)
 
     print('!!Completely Saved!!')
 
 
 def mode_7(sess, graph, save_path):
-    """ draw overlap condtion feature map
+    """ to draw feature map
     """
     # normalize
     real_data = np.load(FLAGS.data_path)[:, :FLAGS.seq_length, :, :]

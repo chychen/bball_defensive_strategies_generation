@@ -14,6 +14,25 @@ def leaky_relu(features, leaky_relu_alpha=0.2):
 
 
 def residual_block(name, inputs, n_filters, n_layers=2, residual_alpha=1.0, leaky_relu_alpha=0.2):
+    """ Res Block
+    Params
+    ------
+    name : string
+        as res block name scope
+    inputs : tensor
+    n_filters : int
+        number of filter in ConV
+    n_layers : int
+        number of layers in Res Block
+    residual_alpha : 
+        output = residual * residual_alpha + inputs
+    leaky_relu_alpha : 
+        output = tf.maximum(features, leaky_relu_alpha * features)
+
+    Return
+    ------
+        residual * residual_alpha + inputs
+    """
     with tf.variable_scope(name):
         next_input = inputs
         for i in range(n_layers):
@@ -36,7 +55,12 @@ def residual_block(name, inputs, n_filters, n_layers=2, residual_alpha=1.0, leak
 
 
 def get_var_list(prefix):
-    """ to get both Generator's trainable variables and add trainable variables into histogram
+    """ to get both Generator's trainable variables and add trainable variables into histogram summary
+    
+    Params
+    ------
+    prefix : string
+        string to select out the trainalbe variables
     """
     trainable_V = tf.trainable_variables()
     theta = []
