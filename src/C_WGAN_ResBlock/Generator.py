@@ -113,25 +113,11 @@ class G_MODEL(object):
         result : tensor, float, shape=[batch, length=100, 10]
             generative result (team B)
         """
-        with tf.variable_scope('G_inference'):  # init
-            input_ = conds
-            if self.if_feed_extra_info:
-                # feed basket position as extra information
-                with tf.name_scope('concat_info'):
-                    left_x = tf.constant(self.data_factory.BASKET_LEFT[0], dtype=tf.float32, shape=[
-                        self.batch_size, self.seq_length, 1])
-                    left_y = tf.constant(self.data_factory.BASKET_LEFT[1], dtype=tf.float32, shape=[
-                        self.batch_size, self.seq_length, 1])
-                    right_x = tf.constant(self.data_factory.BASKET_RIGHT[0], dtype=tf.float32, shape=[
-                        self.batch_size, self.seq_length, 1])
-                    right_y = tf.constant(self.data_factory.BASKET_RIGHT[1], dtype=tf.float32, shape=[
-                        self.batch_size, self.seq_length, 1])
-                    input_ = tf.concat(
-                        [left_x, left_y, right_x, right_y, conds], axis=-1)
+        with tf.variable_scope('G_inference'):
             with tf.variable_scope('conds_linear') as scope:
                 # linear projection on channels, as same as doing 1D-ConV on time dimensions with 1 kenel size
                 conds_linear = layers.fully_connected(
-                    inputs=input_,
+                    inputs=conds,
                     num_outputs=self.n_filters,
                     activation_fn=None,
                     weights_initializer=layers.xavier_initializer(
@@ -151,9 +137,28 @@ class G_MODEL(object):
                     scope=scope
                 )
             latents_linear = tf.reshape(latents_linear, shape=[
-                                        self.batch_size, 1, self.n_filters])
-            # every frame add the same noise, broadcasting on time dimenstion automatically
-            next_input = tf.add(conds_linear, latents_linear)
+                                        -1, 1, self.n_filters])
+            if self.if_feed_extra_info:
+                # feed basket position as extra information
+                with tf.variable_scope('info_linear') as scope:
+                    concat_info = tf.concat(
+                        [self.data_factory.BASKET_LEFT, self.data_factory.BASKET_RIGHT], axis=-1)
+                    concat_info = tf.reshape(concat_info, shape=[1, -1])
+                    info_linear = layers.fully_connected(
+                        inputs=concat_info,
+                        num_outputs=self.n_filters,
+                        activation_fn=None,
+                        weights_initializer=layers.xavier_initializer(
+                            uniform=False),
+                        biases_initializer=tf.zeros_initializer(),
+                        scope=scope
+                    )
+                info_linear = tf.reshape(info_linear, shape=[
+                    1, 1, self.n_filters])
+                # every frame add the same noise, broadcasting on time dimenstion automatically
+                next_input = conds_linear + latents_linear + info_linear
+            else:
+                next_input = conds_linear + latents_linear
             # residual block
             for i in range(self.n_resblock):
                 res_block = libs.residual_block(

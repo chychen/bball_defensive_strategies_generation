@@ -445,11 +445,10 @@ def mode_6(sess, graph, save_path):
     """ to draw different length result
     """
     # normalize
-    real_data = np.load(FLAGS.data_path)[:, :FLAGS.seq_length, :, :]
+    real_data = np.load(FLAGS.data_path)
     print('real_data.shape', real_data.shape)
     data_factory = DataFactory(real_data)
-    target_data = np.concatenate(
-        [np.load('FEATURES-5.npy')[:6] for i in range(2)], axis=1)
+    target_data = np.load('FEATURES-7.npy')
     team_AB = np.concatenate(
         [
             # ball
@@ -463,8 +462,8 @@ def mode_6(sess, graph, save_path):
                 [target_data.shape[0], target_data.shape[1], 5 * 2])
         ], axis=-1
     )
-    dummy_AB = np.zeros(shape=[128 - 6, 200, 23])
-    team_AB = np.concatenate([team_AB, dummy_AB], axis=0)
+    dummy_AB = np.zeros(shape=[team_AB.shape[0], team_AB.shape[1], 23])
+    team_AB = np.concatenate([team_AB, dummy_AB], axis=-1)
     team_AB = data_factory.normalize(team_AB)
     team_A = team_AB[:, :, :13]
     team_B = team_AB[:, :, 13:]
@@ -474,14 +473,11 @@ def mode_6(sess, graph, save_path):
     # result tensor
     result_t = graph.get_tensor_by_name(
         'Generator/G_inference/conv_result/conv1d/Maximum:0')
-
     if not os.path.exists(save_path):
         os.makedirs(save_path)
 
     # result collector
-    latents = z_samples(1)
-    latents = np.concatenate(
-        [latents for i in range(FLAGS.batch_size)], axis=0)
+    latents = z_samples(team_AB.shape[0])
     feed_dict = {
         latent_input_t: latents,
         team_a_t: team_A
@@ -489,9 +485,9 @@ def mode_6(sess, graph, save_path):
     result_fake_B = sess.run(result_t, feed_dict=feed_dict)
     results_A_fake_B = np.concatenate([team_A, result_fake_B], axis=-1)
     results_A_fake_B = data_factory.recover_data(results_A_fake_B)
-    for i in range(6):
+    for i in range(results_A_fake_B.shape[0]):
         game_visualizer.plot_data(
-            results_A_fake_B[i:, 10 * (6 - i):], FLAGS.seq_length * 2 - 60, file_path=save_path + str(i) + '.mp4', if_save=True)
+            results_A_fake_B[i], target_data.shape[1], file_path=save_path + str(i) + '.mp4', if_save=True)
 
     print('!!Completely Saved!!')
 

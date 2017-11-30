@@ -234,12 +234,12 @@ def training(train_data, valid_data, data_factory, config, graph):
                 concat_ = np.concatenate([real_conds, samples], axis=-1)
                 fake_result = data_factory.recover_data(concat_)
                 game_visualizer.plot_data(
-                    fake_result[0:], FLAGS.seq_length, file_path=SAMPLE_PATH + str(global_steps) + '_fake.mp4', if_save=True)
+                    fake_result[0], FLAGS.seq_length, file_path=SAMPLE_PATH + str(global_steps) + '_fake.mp4', if_save=True)
                 # real
                 concat_ = np.concatenate([real_conds, real_samples], axis=-1)
                 real_result = data_factory.recover_data(concat_)
                 game_visualizer.plot_data(
-                    real_result[0:], FLAGS.seq_length, file_path=SAMPLE_PATH + str(global_steps) + '_real.mp4', if_save=True)
+                    real_result[0], FLAGS.seq_length, file_path=SAMPLE_PATH + str(global_steps) + '_real.mp4', if_save=True)
 
 
 def main(_):
