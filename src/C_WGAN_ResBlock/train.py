@@ -1,7 +1,7 @@
 """
-data url: http://140.113.210.14:6006/NBA/data/F2.npy
+data url: http://140.113.210.14:6006/NBA/data/FEATURES-4.npy
 data description: 
-    event by envet, with 300 sequence for each. (about 75 seconds)
+    event by envet, with 100 sequence for each. (about 25 seconds)
 """
 from __future__ import absolute_import
 from __future__ import division
