@@ -88,7 +88,10 @@ python train.py --comment='first training' --folder_path='version_1' --latent_pe
 - More Results, please see [100-results-vedio](link)
 
 ## Data Preprocessing
-
+Dataset comes from STATS SportVU NBA 2015-2016, containing players (x,y) and ball(x,y,z) position on the court during a game, tracked at 25 frames per second. We further:
+- Take all offensive sequences 
+- Start of seqeunce: offensive player inbounds or brings ball past half-court
+- End of sequence: offence takes a shot, either missed or made. 
 - Jimmy
 - Nsknsl
 
