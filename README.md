@@ -60,6 +60,22 @@ python train.py --comment='first training' --folder_path='version_1'
 
 ## Evaluation
 
+### Without Latent Penalty
+
+- if try "--latent_penalty_lambda=0.0", the latents will be ignored over iterations. 
+```bash
+python train.py --comment='first training' --folder_path='version_1' --latent_penalty_lambda=0.0
+```
+- The distribution over time of the weights in latent input layer.
+![](https://image.ibb.co/fzbFSw/Screen_Shot_2017_12_01_at_10_21_05_AM.png)
+- Mode Collapsed Trajectories (single player)
+![](https://image.ibb.co/dNA9nw/Screen_Shot_2017_12_01_at_10_35_27_AM.png)
+
+### With Latent Penalty
+
+- Diverse Trajectories (single player)
+![](https://image.ibb.co/gpYjLG/Screen_Shot_2017_12_01_at_10_35_52_AM.png)
+
 - Nsknsl
 - Jay
 - Jimmy
@@ -67,7 +83,9 @@ python train.py --comment='first training' --folder_path='version_1'
 ## Generative Results
 
 - User Study Link?
-- 100-results vedio link
+- Learn to defense pick and roll?
+![](https://image.ibb.co/nC05sw/real_crop.gif)
+- More Results, please see [100-results-vedio](link)
 
 ## Data Preprocessing
 
