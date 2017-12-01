@@ -3,7 +3,7 @@
 [[Arxiv]]()
 
 ## Architechture
-![](https://image.ibb.co/feAfsw/arch_new.png)
+![](https://lh4.googleusercontent.com/rW_bzu4dIrRyARX2QIdMtORnf-H_G65UkBFYKh_4TbTAspRHnfu0ruy4B3E)
 
 Tensorflow implementation for generating basketball realistic defensive strategies.
 For example:
@@ -12,7 +12,7 @@ For example:
 - Blue Circle: Defensive Player
 - Green Circle: Ball
 
-![](https://image.ibb.co/nC05sw/real_crop.gif)
+![](https://lh6.googleusercontent.com/yHs8-KTKGiGSL1tq9jKzJul8YpTRfX1kGWd-5lFoZ2k2E7T4a8zJTpMvxNY)
 
 ## Setup
 
@@ -60,31 +60,14 @@ python train.py --comment='first training' --folder_path='version_1'
 
 ## Evaluation
 
-### Without Latent Penalty
-
-- if try "--latent_penalty_lambda=0.0", the latents will be ignored over iterations. 
-```bash
-python train.py --comment='first training' --folder_path='version_1' --latent_penalty_lambda=0.0
-```
-- The distribution over time of the weights in latent input layer.
-![](https://image.ibb.co/fzbFSw/Screen_Shot_2017_12_01_at_10_21_05_AM.png)
-- Mode Collapsed Trajectories (single player)
-![](https://image.ibb.co/dNA9nw/Screen_Shot_2017_12_01_at_10_35_27_AM.png)
-
-### With Latent Penalty
-
-- Diverse Trajectories (single player)
-![](https://image.ibb.co/gpYjLG/Screen_Shot_2017_12_01_at_10_35_52_AM.png)
-
-- Nsknsl
-- Jay
-- Jimmy
+### Comparison
+![](https://lh5.googleusercontent.com/HYH6p0a1PuOfs65nhbg5BBfX2NRRw-80d6WDdjlLxH8pIOmvIG-u-CfK3hE)
 
 ## Generative Results
 
 - User Study Link?
 - Learn to defense pick and roll?
-![](https://image.ibb.co/nC05sw/real_crop.gif)
+![](https://lh6.googleusercontent.com/yHs8-KTKGiGSL1tq9jKzJul8YpTRfX1kGWd-5lFoZ2k2E7T4a8zJTpMvxNY)
 - More Results, please see [100-results-vedio](link)
 
 ## Data Preprocessing
