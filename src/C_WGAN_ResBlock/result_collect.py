@@ -448,7 +448,7 @@ def mode_6(sess, graph, save_path):
     real_data = np.load(FLAGS.data_path)
     print('real_data.shape', real_data.shape)
     data_factory = DataFactory(real_data)
-    target_data = np.load('FEATURES-7.npy')
+    target_data = np.load('FEATURES-7.npy')[:,:]
     team_AB = np.concatenate(
         [
             # ball
@@ -462,8 +462,6 @@ def mode_6(sess, graph, save_path):
                 [target_data.shape[0], target_data.shape[1], 5 * 2])
         ], axis=-1
     )
-    dummy_AB = np.zeros(shape=[team_AB.shape[0], team_AB.shape[1], 23])
-    team_AB = np.concatenate([team_AB, dummy_AB], axis=-1)
     team_AB = data_factory.normalize(team_AB)
     team_A = team_AB[:, :, :13]
     team_B = team_AB[:, :, 13:]

@@ -19,7 +19,7 @@ class G_MODEL(object):
     """ model of Generator Network
     """
 
-    def __init__(self, config, critic_inference, graph):
+    def __init__(self, config, loss_for_G, graph):
         """ Build up the graph
         Inputs
         ------
@@ -35,7 +35,7 @@ class G_MODEL(object):
             * residual_alpha : residual block = F(x) * residual_alpha + x
             * leaky_relu_alpha : tf.maximum(x, leaky_relu_alpha * x)
             * n_filters : number of filters in all ConV
-        critic_inference : function
+        loss_for_G : function
             from Critic Network, given generative fake result, scores in return 
         graph : 
             tensorflow default graph
@@ -57,47 +57,49 @@ class G_MODEL(object):
 
         # steps
         self.__global_steps = tf.train.get_or_create_global_step(graph=graph)
-        self.__steps = tf.get_variable('G_steps', shape=[
-        ], dtype=tf.int32, initializer=tf.zeros_initializer(dtype=tf.int32), trainable=False)
-        tf.summary.scalar('G_steps',
-                          self.__steps, collections=['G'])
-        # IO
-        self.critic = critic_inference
-        self.__z = tf.placeholder(dtype=tf.float32, shape=[
-            None, self.latent_dims], name='latent_input')
-        self.__cond = tf.placeholder(dtype=tf.float32, shape=[
-            None, None, 13], name='team_a')
-        # adversarial learning : wgan
-        self.__build_model()
+        with tf.name_scope('Generator'):
+            self.__steps = tf.get_variable('G_steps', shape=[
+            ], dtype=tf.int32, initializer=tf.zeros_initializer(dtype=tf.int32), trainable=False)
+            tf.summary.scalar('G_steps',
+                              self.__steps, collections=['G'])
+            # IO
+            self.loss_for_G = loss_for_G
+            self.__z = tf.placeholder(dtype=tf.float32, shape=[
+                None, self.latent_dims], name='latent_input')
+            self.__cond = tf.placeholder(dtype=tf.float32, shape=[
+                None, None, 13], name='team_a')
+            self.__real_data = tf.placeholder(dtype=tf.float32, shape=[
+                None, self.seq_length, 10], name='real_data')
+            # adversarial learning : wgan
+            self.__build_model()
 
-        # summary
-        self.__summary_op = tf.summary.merge(tf.get_collection('G'))
-        self.__summary_histogram_op = tf.summary.merge(
-            tf.get_collection('G_histogram'))
-        self.__summary_weight_op = tf.summary.merge(
-            tf.get_collection('G_weight'))
-        self.summary_writer = tf.summary.FileWriter(
-            self.log_dir + 'G', graph=graph)
+            # summary
+            self.__summary_op = tf.summary.merge(tf.get_collection('G'))
+            self.__summary_histogram_op = tf.summary.merge(
+                tf.get_collection('G_histogram'))
+            self.__summary_weight_op = tf.summary.merge(
+                tf.get_collection('G_weight'))
+            self.summary_writer = tf.summary.FileWriter(
+                self.log_dir + 'G', graph=graph)
 
     def __build_model(self):
-        with tf.name_scope('Generator'):
-            self.__G_sample = self.__inference(self.__z, self.__cond)
-            # loss function
-            self.__loss = self.__loss_fn(
-                self.__G_sample, self.__cond, lambda_=self.latent_penalty_lambda)
-            theta = libs.get_var_list('G')
-            with tf.name_scope('optimizer') as scope:
-                assign_add_ = tf.assign_add(self.__steps, 1)
-                with tf.control_dependencies([assign_add_]):
-                    optimizer = tf.train.AdamOptimizer(
-                        learning_rate=self.learning_rate, beta1=0.5, beta2=0.9)
-                    grads = tf.gradients(self.__loss, theta)
-                    grads = list(zip(grads, theta))
-                    self.__train_op = optimizer.apply_gradients(
-                        grads_and_vars=grads, global_step=self.__global_steps)
-            for grad, var in grads:
-                tf.summary.histogram(
-                    var.name + '_gradient', grad, collections=['G_histogram'])
+        self.__G_sample = self.__inference(self.__z, self.__cond)
+        # loss function
+        self.__loss = self.__loss_fn(
+            self.__real_data, self.__G_sample, self.__cond, lambda_=self.latent_penalty_lambda)
+        theta = libs.get_var_list('G')
+        with tf.name_scope('optimizer') as scope:
+            assign_add_ = tf.assign_add(self.__steps, 1)
+            with tf.control_dependencies([assign_add_]):
+                optimizer = tf.train.AdamOptimizer(
+                    learning_rate=self.learning_rate, beta1=0.5, beta2=0.9)
+                grads = tf.gradients(self.__loss, theta)
+                grads = list(zip(grads, theta))
+                self.__train_op = optimizer.apply_gradients(
+                    grads_and_vars=grads, global_step=self.__global_steps)
+        for grad, var in grads:
+            tf.summary.histogram(
+                var.name + '_gradient', grad, collections=['G_histogram'])
 
     def __inference(self, latents, conds):
         """
@@ -179,7 +181,7 @@ class G_MODEL(object):
                 )
             return conv_result
 
-    def __loss_fn(self, fake_samples, conds, lambda_):
+    def __loss_fn(self, reals, fake_samples, conds, lambda_):
         """ G loss
 
         Params
@@ -212,16 +214,17 @@ class G_MODEL(object):
                         'conds_linear_weight', tf.reshape(v, shape=[1, shape_[0], shape_[1], 1]), max_outputs=1, collections=['G_weight'])
             penalty_latents_w = tf.reduce_mean(
                 tf.abs(mean_latents - mean_conds))
-            critic_scores = self.critic(fake_samples, conds, reuse=True)
-            loss = - \
-                tf.reduce_mean(critic_scores) + lambda_ * penalty_latents_w
+
+            G_loss = self.loss_for_G(
+                reals, fake_samples, conds, lambda_ * penalty_latents_w)
+
         # logging
-        tf.summary.scalar('G_loss', loss, collections=['G'])
+        tf.summary.scalar('G_loss', G_loss, collections=['G'])
         tf.summary.scalar('G_penalty_latents_w',
                           penalty_latents_w, collections=['G'])
-        return loss
+        return G_loss
 
-    def step(self, sess, latent_inputs, conditions):
+    def step(self, sess, latent_inputs, conditions, reals):
         """ train one batch on G
 
         Params
@@ -239,7 +242,7 @@ class G_MODEL(object):
         global_steps : int
             global steps
         """
-        feed_dict = {self.__z: latent_inputs, self.__cond: conditions}
+        feed_dict = {self.__z: latent_inputs, self.__cond: conditions, self.__real_data: reals}
         steps, summary, loss, global_steps, _ = sess.run(
             [self.__steps, self.__summary_op, self.__loss, self.__global_steps,
                 self.__train_op], feed_dict=feed_dict)

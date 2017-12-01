@@ -63,8 +63,8 @@ tf.app.flags.DEFINE_float('residual_alpha', 1.0,
                           "residual block = F(x) * residual_alpha + x")
 tf.app.flags.DEFINE_float('leaky_relu_alpha', 0.2,
                           "tf.maximum(x, leaky_relu_alpha * x)")
-tf.app.flags.DEFINE_float('heuristic_penalty_lambda', 50.0,
-                          "heuristic_penalty_lambda")
+tf.app.flags.DEFINE_float('openshot_penalty_lambda', 50.0,
+                          "openshot_penalty_lambda")
 tf.app.flags.DEFINE_bool('if_use_mismatched', False,
                          "if True, negative scores = mean of (fake_scores + mismatched_scores)")
 tf.app.flags.DEFINE_bool('if_trainable_lambda', False,
@@ -116,7 +116,7 @@ class TrainingConfig(object):
         self.if_feed_extra_info = FLAGS.if_feed_extra_info
         self.residual_alpha = FLAGS.residual_alpha
         self.leaky_relu_alpha = FLAGS.leaky_relu_alpha
-        self.heuristic_penalty_lambda = FLAGS.heuristic_penalty_lambda
+        self.openshot_penalty_lambda = FLAGS.openshot_penalty_lambda
         self.if_use_mismatched = FLAGS.if_use_mismatched
         self.if_trainable_lambda = FLAGS.if_trainable_lambda
         self.n_filters = FLAGS.n_filters
@@ -142,7 +142,7 @@ def training(train_data, valid_data, data_factory, config, graph):
     print('num_valid_batches', num_valid_batches)
     # model
     C = C_MODEL(config, graph)
-    G = G_MODEL(config, C.inference, graph)
+    G = G_MODEL(config, C.loss_for_G, graph)
     init = tf.global_variables_initializer()
     # saver for later restore
     saver = tf.train.Saver(max_to_keep=0)  # 0 -> keep them all
@@ -206,7 +206,7 @@ def training(train_data, valid_data, data_factory, config, graph):
 
                 # train G
                 G_loss_mean, global_steps = G.step(
-                    sess, z_samples(), real_conds)
+                    sess, z_samples(), real_conds, real_samples)
                 log_counter += 1
 
                 # logging
