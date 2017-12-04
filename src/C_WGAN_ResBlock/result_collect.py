@@ -59,7 +59,8 @@ tf.app.flags.DEFINE_integer('mode', None,
                            4 -> to analize code, only change first dimension for comparison \
                            5 -> to calculate hueristic score on selected result\
                            6 -> to draw different length result \
-                           7 -> to draw feature map")
+                           7 -> to draw feature map \
+                           8 -> to find high-openshot-penalty data in real dataset")
 
 # VISIBLE GPUS
 os.environ['CUDA_VISIBLE_DEVICES'] = FLAGS.gpus
@@ -543,6 +544,60 @@ def mode_7(sess, graph, save_path):
     print('!!Completely Saved!!')
 
 
+def mode_8(sess, graph, save_path):
+    """ to find high-openshot-penalty data in 1000 real data
+    """
+    real_data = np.load(FLAGS.data_path)[:, :FLAGS.seq_length, :, :]
+    print('real_data.shape', real_data.shape)
+    data_factory = DataFactory(real_data)
+    train_data, valid_data = data_factory.fetch_data()
+    # placeholder tensor
+    real_data_t = graph.get_tensor_by_name('real_data:0')
+    matched_cond_t = graph.get_tensor_by_name('matched_cond:0')
+    # result tensor
+    heuristic_penalty_pframe = graph.get_tensor_by_name(
+        'Critic/C_inference/heuristic_penalty/Min:0')
+    # 'Generator/G_loss/C_inference/linear_result/Reshape:0')
+
+    if not os.path.exists(save_path):
+        os.makedirs(save_path)
+    real_hp_pframe_all = []
+    for batch_id in range(train_data['A'].shape[0] // FLAGS.batch_size):
+        index_id = batch_id * FLAGS.batch_size
+        real_data = train_data['B'][index_id:index_id + FLAGS.batch_size]
+        cond_data = train_data['A'][index_id:index_id + FLAGS.batch_size]
+        # real
+        feed_dict = {
+            real_data_t: real_data,
+            matched_cond_t: cond_data
+        }
+        real_hp_pframe = sess.run(
+            heuristic_penalty_pframe, feed_dict=feed_dict)
+        real_hp_pframe_all.append(real_hp_pframe)
+    real_hp_pframe_all = np.concatenate(real_hp_pframe_all, axis=0)
+    print(real_hp_pframe_all.shape)
+    real_hp_pdata = np.mean(real_hp_pframe_all, axis=1)
+    mean_ = np.mean(real_hp_pdata)
+    std_ = np.std(real_hp_pdata)
+    print(mean_)
+    print(std_)
+
+    concat_AB = np.concatenate(
+        [train_data['A'], train_data['B']], axis=-1)
+    recoverd = data_factory.recover_data(concat_AB)
+    for i, v in enumerate(real_hp_pdata):
+        if v > (mean_ + 2 * std_):
+            print('bad', i, v)
+            game_visualizer.plot_data(
+                recoverd[i], recoverd.shape[1], file_path=save_path + 'bad_' + str(i) + '_' + str(v) + '.mp4', if_save=True)
+        if v < 0.0025:
+            print('good', i, v)
+            game_visualizer.plot_data(
+                recoverd[i], recoverd.shape[1], file_path=save_path + 'good_' + str(i) + '_' + str(v) + '.mp4', if_save=True)
+
+    print('!!Completely Saved!!')
+
+
 def main(_):
     with tf.get_default_graph().as_default() as graph:
         # sesstion config
@@ -574,6 +629,9 @@ def main(_):
             elif FLAGS.mode == 7:
                 mode_7(sess, graph, save_path=os.path.join(
                     COLLECT_PATH, 'mode_7/'))
+            elif FLAGS.mode == 8:
+                mode_8(sess, graph, save_path=os.path.join(
+                    COLLECT_PATH, 'mode_8/'))
 
 
 if __name__ == '__main__':
