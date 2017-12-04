@@ -69,7 +69,7 @@ class G_MODEL(object):
             self.__cond = tf.placeholder(dtype=tf.float32, shape=[
                 None, None, 13], name='team_a')
             self.__real_data = tf.placeholder(dtype=tf.float32, shape=[
-                None, self.seq_length, 10], name='real_data')
+                None, None, 10], name='real_data')
             # adversarial learning : wgan
             self.__build_model()
 

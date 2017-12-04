@@ -60,7 +60,8 @@ tf.app.flags.DEFINE_integer('mode', None,
                            5 -> to calculate hueristic score on selected result\
                            6 -> to draw different length result \
                            7 -> to draw feature map \
-                           8 -> to find high-openshot-penalty data in real dataset")
+                           8 -> to find high-openshot-penalty data in real dataset \
+                           9 -> to collect results vary in length")
 
 # VISIBLE GPUS
 os.environ['CUDA_VISIBLE_DEVICES'] = FLAGS.gpus
@@ -449,7 +450,7 @@ def mode_6(sess, graph, save_path):
     real_data = np.load(FLAGS.data_path)
     print('real_data.shape', real_data.shape)
     data_factory = DataFactory(real_data)
-    target_data = np.load('FEATURES-7.npy')[:,:]
+    target_data = np.load('FEATURES-7.npy')[:, :]
     team_AB = np.concatenate(
         [
             # ball
@@ -598,6 +599,111 @@ def mode_8(sess, graph, save_path):
     print('!!Completely Saved!!')
 
 
+def mode_9(sess, graph, save_path, is_valid=FLAGS.is_valid):
+    """ to collect results vary in length
+    Saved Result
+    ------------
+    results_A_fake_B : float, numpy ndarray, shape=[n_latents=100, n_conditions=100, length=100, features=23]
+        Real A + Fake B
+    results_A_real_B : float, numpy ndarray, shape=[n_conditions=100, length=100, features=23]
+        Real A + Real B
+    results_em_dist : float, numpy ndarray, shape=[n_latents=100, n_conditions=100]
+        critic scores for each input data
+    """
+    # placeholder tensor
+    latent_input_t = graph.get_tensor_by_name('Generator/latent_input:0')
+    team_a_t = graph.get_tensor_by_name('Generator/team_a:0')
+    G_samples_t = graph.get_tensor_by_name('Critic/G_samples:0')
+    matched_cond_t = graph.get_tensor_by_name('Critic/matched_cond:0')
+    real_data_t = graph.get_tensor_by_name('Critic/real_data:0')
+    # result tensor
+    result_t = graph.get_tensor_by_name(
+        'Generator/G_inference/conv_result/conv1d/Maximum:0')
+    em_dist_t = graph.get_tensor_by_name(
+        'Critic/C_loss/EM_dist:0')
+
+    if not os.path.exists(save_path):
+        os.makedirs(save_path)
+
+    real_data = np.load(FLAGS.data_path)[:, :FLAGS.seq_length, :, :]
+    print('real_data.shape', real_data.shape)
+    # DataFactory
+    data_factory = DataFactory(real_data)
+    # target data
+    target_data = np.load('FEATURES-9.npy')
+    target_length = np.load('LENGTH-9.npy')
+    team_AB = np.concatenate(
+        [
+            # ball
+            target_data[:, :, 0, :3].reshape(
+                [target_data.shape[0], target_data.shape[1], 1 * 3]),
+            # team A players
+            target_data[:, :, 1:6, :2].reshape(
+                [target_data.shape[0], target_data.shape[1], 5 * 2]),
+            # team B players
+            target_data[:, :, 6:11, :2].reshape(
+                [target_data.shape[0], target_data.shape[1], 5 * 2])
+        ], axis=-1
+    )
+    team_AB = data_factory.normalize(team_AB)
+    team_A = team_AB[:, :, :13]
+    team_B = team_AB[:, :, 13:]
+    # result collector
+    results_A_fake_B = []
+    results_A_real_B = []
+    results_em_dist = []
+
+    for idx in range(team_AB.shape[0]):
+        # given 100(FLAGS.n_latents) latents generate 100 results on same condition at once
+        real_samples = team_B[idx:idx + 1, :target_length[idx]]
+        real_samples = np.concatenate([real_samples for _ in range(FLAGS.n_latents)], axis=0)
+        real_conds = team_A[idx:idx + 1, :target_length[idx]]
+        real_conds = np.concatenate([real_conds for _ in range(FLAGS.n_latents)], axis=0)
+        # generate result
+        latents = z_samples(FLAGS.n_latents)
+        feed_dict = {
+            latent_input_t: latents,
+            team_a_t: real_conds
+        }
+        result = sess.run(
+            result_t, feed_dict=feed_dict)
+        # calculate em distance
+        feed_dict = {
+            G_samples_t: result,
+            matched_cond_t: real_conds,
+            real_data_t: real_samples
+        }
+        em_dist = sess.run(
+            em_dist_t, feed_dict=feed_dict)
+        recoverd_A_fake_B = data_factory.recover_data(np.concatenate([real_conds, result], axis=-1))
+        # padding to length=200
+        dummy = np.zeros(
+            shape=[FLAGS.n_latents, team_AB.shape[1] - target_length[idx], team_AB.shape[2]])
+        temp_A_fake_B_concat = np.concatenate([recoverd_A_fake_B, dummy], axis=1)
+        results_A_fake_B.append(temp_A_fake_B_concat)
+        results_em_dist.append(em_dist)
+    print(np.array(results_A_fake_B).shape)
+    print(np.array(results_em_dist).shape)
+    # concat along with conditions dimension (axis=1)
+    results_A_fake_B = np.stack(results_A_fake_B, axis=1)
+    results_em_dist = np.stack(results_em_dist, axis=1)
+    # real data
+    results_A = data_factory.recover_BALL_and_A(team_A)
+    results_real_B = data_factory.recover_B(team_B)
+    results_A_real_B = data_factory.recover_data(team_AB)
+    # saved as numpy
+    print(np.array(results_A_fake_B).shape)
+    print(np.array(results_A_real_B).shape)
+    print(np.array(results_em_dist).shape)
+    np.save(save_path + 'results_A_fake_B.npy',
+            np.array(results_A_fake_B).astype(np.float32).reshape([FLAGS.n_latents, team_AB.shape[0], team_AB.shape[1], 23]))
+    np.save(save_path + 'results_A_real_B.npy',
+            np.array(results_A_real_B).astype(np.float32).reshape([team_AB.shape[0], team_AB.shape[1], 23]))
+    np.save(save_path + 'results_em_dist.npy',
+            np.array(results_em_dist).astype(np.float32).reshape([FLAGS.n_latents, team_AB.shape[0]]))
+    print('!!Completely Saved!!')
+
+
 def main(_):
     with tf.get_default_graph().as_default() as graph:
         # sesstion config
@@ -632,6 +738,9 @@ def main(_):
             elif FLAGS.mode == 8:
                 mode_8(sess, graph, save_path=os.path.join(
                     COLLECT_PATH, 'mode_8/'))
+            elif FLAGS.mode == 9:
+                mode_9(sess, graph, save_path=os.path.join(
+                    COLLECT_PATH, 'mode_9/'))
 
 
 if __name__ == '__main__':

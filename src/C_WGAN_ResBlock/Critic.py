@@ -63,11 +63,11 @@ class C_MODEL(object):
             ], dtype=tf.int32, initializer=tf.zeros_initializer(dtype=tf.int32), trainable=False)
             # data
             self.__G_samples = tf.placeholder(dtype=tf.float32, shape=[
-                None, self.seq_length, 10], name='G_samples')
+                None, None, 10], name='G_samples')
             self.__real_data = tf.placeholder(dtype=tf.float32, shape=[
-                None, self.seq_length, 10], name='real_data')
+                None, None, 10], name='real_data')
             self.__matched_cond = tf.placeholder(dtype=tf.float32, shape=[
-                None, self.seq_length, 13], name='matched_cond')
+                None, None, 13], name='matched_cond')
             self.__mismatched_cond = tf.random_shuffle(self.__matched_cond)
             # adversarial learning : wgan
             self.__build_model()
@@ -166,19 +166,19 @@ class C_MODEL(object):
                     kernel_initializer=layers.xavier_initializer(),
                     bias_initializer=tf.zeros_initializer()
                 )
-            with tf.variable_scope('linear_result') as scope:
-                normed = layers.layer_norm(conv_output)
-                nonlinear = libs.leaky_relu(normed)
-                conv_output = tf.layers.conv1d(
-                    inputs=nonlinear,
-                    filters=1,
-                    kernel_size=self.seq_length,
-                    strides=1,
-                    padding='valid',
-                    activation=libs.leaky_relu,
-                    kernel_initializer=layers.xavier_initializer(),
-                    bias_initializer=tf.zeros_initializer()
-                )
+            # with tf.variable_scope('linear_result') as scope:
+            #     normed = layers.layer_norm(conv_output)
+            #     nonlinear = libs.leaky_relu(normed)
+            #     conv_output = tf.layers.conv1d(
+            #         inputs=nonlinear,
+            #         filters=1,
+            #         kernel_size=self.seq_length,
+            #         strides=1,
+            #         padding='valid',
+            #         activation=libs.leaky_relu,
+            #         kernel_initializer=layers.xavier_initializer(),
+            #         bias_initializer=tf.zeros_initializer()
+            #     )
                 conv_output = tf.reduce_mean(conv_output, axis=1)
                 final_ = tf.reshape(
                     conv_output, shape=[-1])
@@ -193,12 +193,15 @@ class C_MODEL(object):
         conds : 
         latent_weight_penalty : 
         """
-        if self.if_trainable_lambda:
-            openshot_penalty_lambda = tf.get_variable('trainable_openshot_penalty_lambda', shape=[
-            ], dtype=tf.float32, initializer=tf.constant_initializer(value=10.0))
-        else:
-            openshot_penalty_lambda = tf.constant(
-                self.openshot_penalty_lambda)
+        # if self.if_trainable_lambda:
+        #     with tf.variable_scope('C', reuse=True):
+        #         openshot_penalty_lambda = tf.get_variable('trainable_openshot_penalty_lambda', shape=[
+        #         ], dtype=tf.float32, initializer=tf.constant_initializer(value=10.0))
+        # else:
+        #     openshot_penalty_lambda = tf.constant(
+        #         self.openshot_penalty_lambda)
+        openshot_penalty_lambda = tf.constant(
+            self.openshot_penalty_lambda)
         openshot_penalty = self.__open_shot_penalty(
             reals, conds, fakes, if_log=False)
         fake_scores = self.inference(fakes, conds, reuse=True)
@@ -296,31 +299,33 @@ class C_MODEL(object):
             grad_norm = tf.sqrt(sum_)
             grad_pen = penalty_lambda * tf.reduce_mean(
                 tf.square(grad_norm - 1.0))
+            EM_dist = tf.identity(real_scores - fake_scores, name="EM_dist")
             f_fake = tf.reduce_mean(fake_scores)
             f_real = tf.reduce_mean(real_scores)
             # Earth Moving Distance
-            EM_distance = f_fake - f_real + grad_pen
+            loss = f_fake - f_real + grad_pen
             # add open shot penalty
-            scale_ = (tf.abs(f_fake) + tf.abs(f_real)) / 2
-            if self.if_trainable_lambda:
-                openshot_penalty_lambda = tf.get_variable('trainable_openshot_penalty_lambda', shape=[
-                ], dtype=tf.float32, initializer=tf.constant_initializer(value=10.0))
-            else:
-                openshot_penalty_lambda = tf.constant(
-                    self.openshot_penalty_lambda)
-            loss = EM_distance + scale_ * \
-                openshot_penalty_lambda * openshot_penalty
+            # scale_ = (tf.abs(f_fake) + tf.abs(f_real)) / 2
+            # if self.if_trainable_lambda:
+            #     with tf.variable_scope('C'):
+            #         openshot_penalty_lambda = tf.get_variable('trainable_openshot_penalty_lambda', shape=[
+            #         ], dtype=tf.float32, initializer=tf.constant_initializer(value=10.0))
+            # else:
+            #     openshot_penalty_lambda = tf.constant(
+            #         self.openshot_penalty_lambda)
+            # loss = wgan_gp - scale_ * \
+            #     openshot_penalty_lambda * openshot_penalty
 
             # logging
             tf.summary.scalar('C_loss', loss,
                               collections=['C', 'C_valid'])
             tf.summary.scalar('F_real', f_real, collections=['C'])
             tf.summary.scalar('F_fake', f_fake, collections=['C'])
-            tf.summary.scalar('Earth Moving Distance (F_real-F_fake)', f_real -
-                              f_fake, collections=['C', 'C_valid'])
+            tf.summary.scalar('Earth Moving Distance',
+                              f_real - f_fake, collections=['C', 'C_valid'])
             tf.summary.scalar('grad_pen', grad_pen, collections=['C'])
-            tf.summary.scalar('openshot_penalty_lambda',
-                              openshot_penalty_lambda, collections=['C'])
+            # tf.summary.scalar('openshot_penalty_lambda',
+            # openshot_penalty_lambda, collections=['C'])
 
         return loss
 
