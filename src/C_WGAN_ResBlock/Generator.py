@@ -60,8 +60,6 @@ class G_MODEL(object):
         with tf.name_scope('Generator'):
             self.__steps = tf.get_variable('G_steps', shape=[
             ], dtype=tf.int32, initializer=tf.zeros_initializer(dtype=tf.int32), trainable=False)
-            tf.summary.scalar('G_steps',
-                              self.__steps, collections=['G'])
             # IO
             self.loss_for_G = loss_for_G
             self.__z = tf.placeholder(dtype=tf.float32, shape=[
