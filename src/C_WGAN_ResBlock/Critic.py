@@ -35,7 +35,6 @@ class C_MODEL(object):
             * leaky_relu_alpha : tf.maximum(x, leaky_relu_alpha * x)
             * openshot_penalty_lambda : Critic = Critic - openshot_penalty_lambda * open_shot_score
             * if_use_mismatched : if True, negative scores = mean of (fake_scores + mismatched_scores)
-            * if_trainable_lambda : if_trainable_lambda, if True: init=10.0
             * n_filters : number of filters in all ConV
         graph :
             tensorflow default graph
@@ -53,7 +52,6 @@ class C_MODEL(object):
         self.leaky_relu_alpha = config.leaky_relu_alpha
         self.openshot_penalty_lambda = config.openshot_penalty_lambda
         self.if_use_mismatched = config.if_use_mismatched
-        self.if_trainable_lambda = config.if_trainable_lambda
         self.n_filters = config.n_filters
 
         # steps
@@ -88,8 +86,6 @@ class C_MODEL(object):
             self.__real_data, self.__matched_cond)
         self.fake_scores = self.inference(
             self.__G_samples, self.__matched_cond, reuse=True)
-        openshot_penalty = self.__open_shot_penalty(
-            self.__real_data, self.__matched_cond, self.__G_samples, if_log=True)
         if self.if_use_mismatched:
             mismatched_scores = self.inference(
                 self.__real_data, self.__mismatched_cond, reuse=True)
@@ -99,7 +95,7 @@ class C_MODEL(object):
 
         # loss function
         self.__loss = self.__loss_fn(
-            self.__real_data, self.__G_samples, neg_scores, real_scores, self.penalty_lambda, openshot_penalty)
+            self.__real_data, self.__G_samples, neg_scores, real_scores, self.penalty_lambda)
         theta = libs.get_var_list('C')
         with tf.name_scope('optimizer') as scope:
             # Critic train one iteration, step++
@@ -166,19 +162,6 @@ class C_MODEL(object):
                     kernel_initializer=layers.xavier_initializer(),
                     bias_initializer=tf.zeros_initializer()
                 )
-            # with tf.variable_scope('linear_result') as scope:
-            #     normed = layers.layer_norm(conv_output)
-            #     nonlinear = libs.leaky_relu(normed)
-            #     conv_output = tf.layers.conv1d(
-            #         inputs=nonlinear,
-            #         filters=1,
-            #         kernel_size=self.seq_length,
-            #         strides=1,
-            #         padding='valid',
-            #         activation=libs.leaky_relu,
-            #         kernel_initializer=layers.xavier_initializer(),
-            #         bias_initializer=tf.zeros_initializer()
-            #     )
                 conv_output = tf.reduce_mean(conv_output, axis=1)
                 final_ = tf.reshape(
                     conv_output, shape=[-1])
@@ -193,13 +176,6 @@ class C_MODEL(object):
         conds : 
         latent_weight_penalty : 
         """
-        # if self.if_trainable_lambda:
-        #     with tf.variable_scope('C', reuse=True):
-        #         openshot_penalty_lambda = tf.get_variable('trainable_openshot_penalty_lambda', shape=[
-        #         ], dtype=tf.float32, initializer=tf.constant_initializer(value=10.0))
-        # else:
-        #     openshot_penalty_lambda = tf.constant(
-        #         self.openshot_penalty_lambda)
         openshot_penalty_lambda = tf.constant(
             self.openshot_penalty_lambda)
         openshot_penalty = self.__open_shot_penalty(
@@ -217,7 +193,8 @@ class C_MODEL(object):
             reals, conds, if_log=if_log, log_scope_name='real')
         fake_os_penalty = self.__open_shot_score(
             fakes, conds, if_log=if_log, log_scope_name='fake')
-        return tf.abs(real_os_penalty - fake_os_penalty)
+        # return tf.abs(real_os_penalty - fake_os_penalty)
+        return fake_os_penalty
 
     def __open_shot_score(self, inputs, conds, if_log, log_scope_name=''):
         """
@@ -259,7 +236,7 @@ class C_MODEL(object):
                                   open_shot_score, collections=['C'])
         return open_shot_score
 
-    def __loss_fn(self, real_data, G_sample, fake_scores, real_scores, penalty_lambda, openshot_penalty):
+    def __loss_fn(self, real_data, G_sample, fake_scores, real_scores, penalty_lambda):
         """ Critic loss
 
         Params
@@ -274,8 +251,6 @@ class C_MODEL(object):
             result from inference given real data
         penalty_lambda : float
             gradient penalty's weight, ref from paper 'improved-wgan'
-        openshot_penalty : tensor, float
-            openshot_penalty
 
         Return
         ------
@@ -304,17 +279,6 @@ class C_MODEL(object):
             f_real = tf.reduce_mean(real_scores)
             # Earth Moving Distance
             loss = f_fake - f_real + grad_pen
-            # add open shot penalty
-            # scale_ = (tf.abs(f_fake) + tf.abs(f_real)) / 2
-            # if self.if_trainable_lambda:
-            #     with tf.variable_scope('C'):
-            #         openshot_penalty_lambda = tf.get_variable('trainable_openshot_penalty_lambda', shape=[
-            #         ], dtype=tf.float32, initializer=tf.constant_initializer(value=10.0))
-            # else:
-            #     openshot_penalty_lambda = tf.constant(
-            #         self.openshot_penalty_lambda)
-            # loss = wgan_gp - scale_ * \
-            #     openshot_penalty_lambda * openshot_penalty
 
             # logging
             tf.summary.scalar('C_loss', loss,
@@ -324,8 +288,6 @@ class C_MODEL(object):
             tf.summary.scalar('Earth Moving Distance',
                               f_real - f_fake, collections=['C', 'C_valid'])
             tf.summary.scalar('grad_pen', grad_pen, collections=['C'])
-            # tf.summary.scalar('openshot_penalty_lambda',
-            # openshot_penalty_lambda, collections=['C'])
 
         return loss
 

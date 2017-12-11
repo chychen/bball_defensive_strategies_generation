@@ -63,12 +63,10 @@ tf.app.flags.DEFINE_float('residual_alpha', 1.0,
                           "residual block = F(x) * residual_alpha + x")
 tf.app.flags.DEFINE_float('leaky_relu_alpha', 0.2,
                           "tf.maximum(x, leaky_relu_alpha * x)")
-tf.app.flags.DEFINE_float('openshot_penalty_lambda', 50.0,
+tf.app.flags.DEFINE_float('openshot_penalty_lambda', 1.0,
                           "openshot_penalty_lambda")
 tf.app.flags.DEFINE_bool('if_use_mismatched', False,
                          "if True, negative scores = mean of (fake_scores + mismatched_scores)")
-tf.app.flags.DEFINE_bool('if_trainable_lambda', False,
-                         "if_trainable_lambda, if True: init=10.0")
 tf.app.flags.DEFINE_integer('n_filters', 256,
                             "number of filters in all ConV")
 # logging
@@ -118,7 +116,6 @@ class TrainingConfig(object):
         self.leaky_relu_alpha = FLAGS.leaky_relu_alpha
         self.openshot_penalty_lambda = FLAGS.openshot_penalty_lambda
         self.if_use_mismatched = FLAGS.if_use_mismatched
-        self.if_trainable_lambda = FLAGS.if_trainable_lambda
         self.n_filters = FLAGS.n_filters
         with open(os.path.join(FLAGS.folder_path, 'hyper_parameters.json'), 'w') as outfile:
             json.dump(FLAGS.__dict__['__flags'], outfile)
