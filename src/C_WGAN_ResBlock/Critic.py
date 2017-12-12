@@ -179,7 +179,7 @@ class C_MODEL(object):
         openshot_penalty_lambda = tf.constant(
             self.openshot_penalty_lambda)
         openshot_penalty = self.__open_shot_penalty(
-            reals, conds, fakes, if_log=False)
+            reals, conds, fakes, if_log=True)
         fake_scores = self.inference(fakes, conds, reuse=True)
         scale_ = tf.abs(tf.reduce_mean(fake_scores))
         loss = - tf.reduce_mean(fake_scores) + scale_ * \
@@ -233,7 +233,7 @@ class C_MODEL(object):
         if if_log:
             with tf.name_scope(log_scope_name):
                 tf.summary.scalar('open_shot_score',
-                                  open_shot_score, collections=['C'])
+                                  open_shot_score, collections=['G'])
         return open_shot_score
 
     def __loss_fn(self, real_data, G_sample, fake_scores, real_scores, penalty_lambda):
