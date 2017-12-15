@@ -68,10 +68,10 @@ tensorboard --logdir='version_1' &
 ```
 
 - example (with latent weight penalty lambda=1.0)
-![](https://lh6.googleusercontent.com/5F0np2ynG-lIeBM9DK9vNmayAhpJGsr6XVJHGwJ6JZR5FniNr5cRcldhyJE)
+![](https://lh6.googleusercontent.com/Z8T0VYV0o6DHqpENgGRxODXqsYTbXnvemH5ihrddfd6GVpgeJL2m1AOxc-s)
 
 - example (without latent weight penalty lambda=0.0)
-![](https://lh6.googleusercontent.com/Z8T0VYV0o6DHqpENgGRxODXqsYTbXnvemH5ihrddfd6GVpgeJL2m1AOxc-s)
+![](https://lh6.googleusercontent.com/5F0np2ynG-lIeBM9DK9vNmayAhpJGsr6XVJHGwJ6JZR5FniNr5cRcldhyJE)
 
 ## Evaluation
 
