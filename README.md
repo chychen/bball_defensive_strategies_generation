@@ -58,6 +58,21 @@ cd ../src/C_WGAN_ResBlock/
 python train.py --comment='first training' --folder_path='version_1'
 ```
 
+### Moniter Training
+
+- You can see all training details on through tensorboard including histogram, distribution, and several scalar metrics during training.
+
+```bash
+# (default url) -> {YOUR_IP_ADDR}:6006 i.e. 127.0.0.1:6006
+tensorboard --logdir='version_1' &
+```
+
+- example (with latent weight penalty lambda=1.0)
+![](https://lh6.googleusercontent.com/5F0np2ynG-lIeBM9DK9vNmayAhpJGsr6XVJHGwJ6JZR5FniNr5cRcldhyJE)
+
+- example (without latent weight penalty lambda=0.0)
+![](https://lh6.googleusercontent.com/Z8T0VYV0o6DHqpENgGRxODXqsYTbXnvemH5ihrddfd6GVpgeJL2m1AOxc-s)
+
 ## Evaluation
 
 ### Comparison
