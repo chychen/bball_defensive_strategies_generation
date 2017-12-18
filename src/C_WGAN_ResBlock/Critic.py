@@ -193,8 +193,7 @@ class C_MODEL(object):
             reals, conds, if_log=if_log, log_scope_name='real')
         fake_os_penalty = self.__open_shot_score(
             fakes, conds, if_log=if_log, log_scope_name='fake')
-        # return tf.abs(real_os_penalty - fake_os_penalty)
-        return fake_os_penalty
+        return tf.abs(real_os_penalty - fake_os_penalty)
 
     def __open_shot_score(self, inputs, conds, if_log, log_scope_name=''):
         """
@@ -226,7 +225,8 @@ class C_MODEL(object):
                 vec_ball_2_basket, ord='euclidean', axis=-1)
             one_sub_cosine = 1 - b2teamB_dot_b2basket / \
                 (dist_ball_2_teamB * dist_ball_2_basket)
-            open_shot_score_all = one_sub_cosine * dist_ball_2_teamB
+            open_shot_score_all = one_sub_cosine + dist_ball_2_teamB
+            # open_shot_score_all = one_sub_cosine * dist_ball_2_teamB
             open_shot_score_min = tf.reduce_min(
                 open_shot_score_all, axis=-1)
             open_shot_score = tf.reduce_mean(open_shot_score_min)
