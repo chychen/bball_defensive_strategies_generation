@@ -119,7 +119,7 @@ def main():
 
             server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-            host = socket.gethostbyname('140.113.210.18')
+            host = socket.gethostbyname('140.113.210.4')
             port = 9999
 
             server_socket.bind((host, port))
