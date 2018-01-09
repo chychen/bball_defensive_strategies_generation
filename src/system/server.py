@@ -130,36 +130,39 @@ def main():
             server_socket.listen(5)
 
             while True:
-                client_socket, addr = server_socket.accept()
-                print("Connection from {}".format(str(addr)))
+                try:
+                    client_socket, addr = server_socket.accept()
+                    print("Connection from {}".format(str(addr)))
 
-                # Receive input json
-                datasize = read_num(client_socket)
-                print(type(datasize), datasize)
-                data = read_bytes(client_socket, datasize)
-                jdata = json.loads(data.decode())
+                    # Receive input json
+                    datasize = read_num(client_socket)
+                    print(type(datasize), datasize)
+                    data = read_bytes(client_socket, datasize)
+                    jdata = json.loads(data.decode())
 
-                ####Do something#####
-                # offense_input = np.zeros(shape=[123, 13])  # an example
-                # defense_result = generate_defensive_strategy(
-                #     sess, graph, offense_input)
-                # print(defense_result.shape)
-                #####################
+                    ####Do something#####
+                    # offense_input = np.zeros(shape=[123, 13])  # an example
+                    # defense_result = generate_defensive_strategy(
+                    #     sess, graph, offense_input)
+                    # print(defense_result.shape)
+                    #####################
 
-                offense_input = deal_input(jdata)
-                defense_result = generate_defensive_strategy(
-                    sess, graph, offense_input
-                )
-                output_send = deal_output(defense_result)
-                #output_send = list(output_send)
-                # print("type", type(output_send))
-                # print("output", output_send)
-                # send output json
-                output = json.dumps(output_send)
-                client_socket.sendall(struct.pack("L", len(output.encode())))
-                client_socket.sendall(output.encode())
-                print("Send!")
+                    offense_input = deal_input(jdata)
+                    defense_result = generate_defensive_strategy(
+                        sess, graph, offense_input
+                    )
+                    output_send = deal_output(defense_result)
+                    #output_send = list(output_send)
+                    # print("type", type(output_send))
+                    # print("output", output_send)
+                    # send output json
+                    output = json.dumps(output_send)
+                    client_socket.sendall(struct.pack("=L", len(output.encode())))
+                    client_socket.sendall(output.encode())
+                    print("Send!")
                 # client_socket.close()
+            except:
+                print("Failure Connection!")
 
 
 if __name__ == '__main__':
