@@ -161,8 +161,8 @@ def main():
                     client_socket.sendall(output.encode())
                     print("Send!")
                 # client_socket.close()
-            except:
-                print("Failure Connection!")
+                except:
+                    print("Failure Connection!")
 
 
 if __name__ == '__main__':
