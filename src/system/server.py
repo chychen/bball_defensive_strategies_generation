@@ -21,6 +21,26 @@ def read_num(sock):
     data = read_bytes(sock, size)
     return struct.unpack("L", data)
 
+def deal_input(js):
+    num_frames = len(js)
+    shape = (num_frames, 13)
+    data = np.zeros((shape))
+    for frame in range(num_frames):
+        index = 'f' + str(frame)
+        get = js[index]
+        get[:] = [float(each) for each in get]
+        data[frame, :] = get
+    return data 
+
+def deal_output(out):
+    js = dict()
+    num_frames = out.shape[0]
+    for frame in range(num_frames):
+        index = 'f' + str(frame)
+        js[index] = list(out[frame])
+    return js
+
+
 
 def generate_defensive_strategy(sess, graph, offense_input):
     """ Given one offensive input, generate 100 defensive strategies, and reture only one result with the hightest score . 
@@ -90,12 +110,12 @@ def main():
             saver.restore(sess, 'ckpt/model.ckpt-123228')
             print('Congrat! Successfully restore model :D')
 
-            offense_input = np.zeros(shape=[123, 13])  # an example
-            defense_result = generate_defensive_strategy(
-                sess, graph, offense_input)
+            # offense_input = np.zeros(shape=[123, 13])  # an example
+            # defense_result = generate_defensive_strategy(
+            #     sess, graph, offense_input)
 
-            print(defense_result.shape)
-            exit()
+            # print(defense_result.shape)
+            # exit()
 
             server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
@@ -115,17 +135,24 @@ def main():
                 jdata = json.loads(data.decode())
 
                 ####Do something#####
-                offense_input = np.zeros(shape=[123, 13])  # an example
-                defense_result = generate_defensive_strategy(
-                    sess, graph, offense_input)
-                print(defense_result.shape)
+                # offense_input = np.zeros(shape=[123, 13])  # an example
+                # defense_result = generate_defensive_strategy(
+                #     sess, graph, offense_input)
+                # print(defense_result.shape)
                 #####################
 
+                offense_input = deal_input(jdata)
+                defense_result = generate_defensive_strategy(
+                    sess, graph, offense_input
+                )
+                output_send = deal_output(defense_result)
+
                 # send output json
-                output = json.dumps(jdata)
+                output = json.dumps(output_send)
                 client_socket.sendall(struct.pack("L", len(output.encode())))
                 client_socket.sendall(output.encode())
-                client_socket.close()
+                print("Send!")
+                # client_socket.close()
 
 
 if __name__ == '__main__':
