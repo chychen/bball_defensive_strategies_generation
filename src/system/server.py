@@ -5,7 +5,7 @@ import numpy as np
 import tensorflow as tf
 from utils import DataFactory
 
-
+#socket.setdefaulttimeout(20)
 def read_bytes(sock, size):
     buf = b""
     while len(buf) != size:
@@ -17,10 +17,11 @@ def read_bytes(sock, size):
 
 
 def read_num(sock):
-    size = struct.calcsize("L")
+    size = struct.calcsize("=L")
     data = read_bytes(sock, size)
-    return struct.unpack("L", data)
-
+    num = struct.unpack("=L", data)
+    num = int(num[0])
+    return num
 def deal_input(js):
     num_frames = len(js)
     shape = (num_frames, 13)
@@ -37,7 +38,10 @@ def deal_output(out):
     num_frames = out.shape[0]
     for frame in range(num_frames):
         index = 'f' + str(frame)
-        js[index] = list(out[frame])
+        get = list(out[frame])
+        get[:] = [str(each) for each in get]
+        js[index] = get
+    # print("JS", js)
     return js
 
 
@@ -120,7 +124,7 @@ def main():
             server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
             host = socket.gethostbyname('140.113.210.4')
-            port = 9999
+            port = 5000
 
             server_socket.bind((host, port))
             server_socket.listen(5)
@@ -130,7 +134,8 @@ def main():
                 print("Connection from {}".format(str(addr)))
 
                 # Receive input json
-                datasize = read_num(client_socket)[0]
+                datasize = read_num(client_socket)
+                print(type(datasize), datasize)
                 data = read_bytes(client_socket, datasize)
                 jdata = json.loads(data.decode())
 
@@ -146,7 +151,9 @@ def main():
                     sess, graph, offense_input
                 )
                 output_send = deal_output(defense_result)
-
+                #output_send = list(output_send)
+                # print("type", type(output_send))
+                # print("output", output_send)
                 # send output json
                 output = json.dumps(output_send)
                 client_socket.sendall(struct.pack("L", len(output.encode())))
