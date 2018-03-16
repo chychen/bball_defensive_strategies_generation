@@ -25,12 +25,12 @@ tf.app.flags.DEFINE_string('comment', None,
 # path parameters
 tf.app.flags.DEFINE_string('folder_path', None,
                            "summary directory")
-tf.app.flags.DEFINE_string('data_path', '../../data/FEATURES-4.npy',
+tf.app.flags.DEFINE_string('data_path', '../../data/FixedFPS5-Train.npy',
                            "summary directory")
 tf.app.flags.DEFINE_string('restore_path', None,
                            "path of saving model eg: checkpoints/model.ckpt-5")
 # input parameters
-tf.app.flags.DEFINE_integer('seq_length', 100,
+tf.app.flags.DEFINE_integer('seq_length', 50,
                             "the maximum length of one training data")
 tf.app.flags.DEFINE_integer('latent_dims', 100,
                             "dimensions of latant variable")
@@ -67,7 +67,7 @@ tf.app.flags.DEFINE_float('openshot_penalty_lambda', 1.0,
                           "openshot_penalty_lambda")
 tf.app.flags.DEFINE_bool('if_use_mismatched', False,
                          "if True, negative scores = mean of (fake_scores + mismatched_scores)")
-tf.app.flags.DEFINE_integer('n_filters', 256,
+tf.app.flags.DEFINE_integer('n_filters', 128,
                             "number of filters in all ConV")
 # logging
 tf.app.flags.DEFINE_integer('save_model_freq', 100,
@@ -118,10 +118,8 @@ class TrainingConfig(object):
         self.if_use_mismatched = FLAGS.if_use_mismatched
         self.n_filters = FLAGS.n_filters
         with open(os.path.join(FLAGS.folder_path, 'hyper_parameters.json'), 'w') as outfile:
-            json.dump(FLAGS.__dict__['__flags'], outfile)
-
-    def show(self):
-        print(FLAGS.__dict__['__flags'])
+            json.dump(self.__dict__, outfile, default=repr)
+        print(self.__dict__)
 
 
 def z_samples():
@@ -250,7 +248,6 @@ def main(_):
         print(valid_data['A'].shape)
         # config setting
         config = TrainingConfig()
-        config.show()
         # train
         training(train_data, valid_data, data_factory, config, graph)
 
