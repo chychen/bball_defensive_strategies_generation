@@ -67,7 +67,7 @@ tf.app.flags.DEFINE_float('openshot_penalty_lambda', 1.0,
                           "openshot_penalty_lambda")
 tf.app.flags.DEFINE_bool('if_use_mismatched', False,
                          "if True, negative scores = mean of (fake_scores + mismatched_scores)")
-tf.app.flags.DEFINE_integer('n_filters', 128,
+tf.app.flags.DEFINE_integer('n_filters', 256,
                             "number of filters in all ConV")
 # logging
 tf.app.flags.DEFINE_integer('save_model_freq', 100,

@@ -114,25 +114,33 @@ def test():
     """
     plot real data
     """
-    train_data = np.load(opt.data_path)
-    data_factory = DataFactory(train_data)
-    train_data, _ = data_factory.fetch_data()
-    target_data = np.concatenate([train_data['A'], train_data['B']], axis=-1)
-    target_data = data_factory.recover_data(target_data)
-    for i in range(opt.amount):
-        plot_data(target_data[i], length=100,
-                  file_path=opt.save_path + 'play_' + str(i) + '.mp4', if_save=opt.save)
-
-    # # cmd e.g. python game_visualizer.py --data_path='../../data/collect/mode_6/results_A_fake_B.npy' --save_path='../../data/collect/try/' --amount=10
-    # results_data = np.load(opt.data_path)
-    # print(results_data.shape)
+    # train_data = np.load(opt.data_path)
+    # data_factory = DataFactory(train_data)
+    # train_data, _ = data_factory.fetch_data()
+    # target_data = np.concatenate([train_data['A'], train_data['B']], axis=-1)
+    # target_data = data_factory.recover_data(target_data)
     # for i in range(opt.amount):
-    #     plot_data(results_data[i, 1], length=100,
+    #     plot_data(target_data[i], length=100,
     #               file_path=opt.save_path + 'play_' + str(i) + '.mp4', if_save=opt.save)
-    print('opt.save', opt.save)
-    print('opt.amount', opt.amount)
-    print('opt.seq_length', opt.seq_length)
-    print('opt.save_path', opt.save_path)
+
+    # # # cmd e.g. python game_visualizer.py --data_path='../../data/collect/mode_6/results_A_fake_B.npy' --save_path='../../data/collect/try/' --amount=10
+    # # results_data = np.load(opt.data_path)
+    # # print(results_data.shape)
+    # # for i in range(opt.amount):
+    # #     plot_data(results_data[i, 1], length=100,
+    # #               file_path=opt.save_path + 'play_' + str(i) + '.mp4', if_save=opt.save)
+    # print('opt.save', opt.save)
+    # print('opt.amount', opt.amount)
+    # print('opt.seq_length', opt.seq_length)
+    # print('opt.save_path', opt.save_path)
+
+    target_data = np.load('v1/collect/mode_9/results_A_fake_B.npy')
+    target_data_len = np.load('../../data/FixedFPS5Length.npy')[:10000:100]
+    print(target_data.shape)
+    print(target_data_len.shape)
+    for i in range(target_data.shape[0]):
+        plot_data(target_data[0, i], length=target_data_len[i],
+                  file_path=opt.save_path + 'play_{}.mp4'.format(i), if_save=opt.save)
 
 
 if __name__ == '__main__':
@@ -144,10 +152,10 @@ if __name__ == '__main__':
                         help='how many event do you want to plot')
     parser.add_argument('--seq_length', type=int, default=100,
                         help='how long for each event')
-    parser.add_argument('--save_path', type=str, default='../../data/',
+    parser.add_argument('--save_path', type=str, default='v1/vis/',
                         help='string, path to save event animation')
     parser.add_argument('--data_path', type=str,
-                        default='../../data/FEATURES-4.npy', help='string, path of target data')
+                        default='../../data/FixedFPS5.npy', help='string, path of target data')
 
     opt = parser.parse_args()
     if not os.path.exists(opt.save_path):
