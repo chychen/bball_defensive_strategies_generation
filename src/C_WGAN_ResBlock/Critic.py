@@ -97,13 +97,10 @@ class C_MODEL(object):
             neg_scores = (self.fake_scores + mismatched_scores) / 2.0
         else:
             neg_scores = self.fake_scores
-        
+
         f_fake = tf.reduce_mean(self.fake_scores)
         f_real = tf.reduce_mean(self.real_scores)
-        with tf.name_scope('C_loss') as scope:
-            self.EM_dist = f_real - f_fake
-            self.summary_em = tf.summary.scalar('Earth Moving Distance', self.EM_dist)
-        
+
         if self.if_training:
             # loss function
             self.__loss = self.__loss_fn(
@@ -123,6 +120,11 @@ class C_MODEL(object):
             for grad, var in grads:
                 tf.summary.histogram(
                     var.name + '_gradient', grad, collections=['C_histogram'])
+        else:
+            with tf.name_scope('C_loss') as scope:
+                self.EM_dist = f_real - f_fake
+                self.summary_em = tf.summary.scalar(
+                    'Earth Moving Distance', self.EM_dist)
 
     def inference(self, inputs, conds, reuse=False):
         """
@@ -235,9 +237,15 @@ class C_MODEL(object):
                 vec_ball_2_teamB, ord='euclidean', axis=-1)
             dist_ball_2_basket = tf.norm(
                 vec_ball_2_basket, ord='euclidean', axis=-1)
+
             theta = tf.acos(b2teamB_dot_b2basket /
-                                 (dist_ball_2_teamB * dist_ball_2_basket+1e-8))
+                            (dist_ball_2_teamB * dist_ball_2_basket+1e-3))  # avoid nan
             open_shot_score_all = (theta + 1.0) * (dist_ball_2_teamB + 1.0)
+
+            # one_sub_cosine = 1 - b2teamB_dot_b2basket / \
+            #     (dist_ball_2_teamB * dist_ball_2_basket)
+            # open_shot_score_all = one_sub_cosine + dist_ball_2_teamB
+
             open_shot_score_min = tf.reduce_min(
                 open_shot_score_all, axis=-1)
             open_shot_score = tf.reduce_mean(open_shot_score_min)

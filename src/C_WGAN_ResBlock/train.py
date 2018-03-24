@@ -138,16 +138,21 @@ def training(train_data, valid_data, data_factory, config, default_graph, baseli
     if baseline_graph is not None:
         baseline_sess = tf.Session(graph=baseline_graph)
         with baseline_graph.as_default() as graph:
-            with tf.variable_scope('baseline'):
-                var_dict = {}
-                baseline_C = C_MODEL(config, graph, if_training=False)
-                for baseline_var in tf.trainable_variables():
-                    var_name = baseline_var.name[9:-2]
-                    var_dict[var_name] = baseline_var
-                saver = tf.train.Saver(var_list=var_dict)
-                saver.restore(baseline_sess, FLAGS.baseline_checkpoint)
-                print('successfully restore baseline critic from checkpoint: %s' %
-                      (FLAGS.baseline_checkpoint))
+            # with tf.variable_scope('baseline'):
+            #     var_dict = {}
+            #     baseline_C = C_MODEL(config, graph, if_training=False)
+            #     for baseline_var in tf.trainable_variables():
+            #         var_name = baseline_var.name[9:-2]
+            #         var_dict[var_name] = baseline_var
+            #     saver = tf.train.Saver(var_list=var_dict)
+            #     saver.restore(baseline_sess, FLAGS.baseline_checkpoint)
+            #     print('successfully restore baseline critic from checkpoint: %s' %
+            #           (FLAGS.baseline_checkpoint))
+            baseline_C = C_MODEL(config, graph, if_training=False)
+            saver = tf.train.Saver()
+            saver.restore(baseline_sess, FLAGS.baseline_checkpoint)
+            print('successfully restore baseline critic from checkpoint: %s' %
+                    (FLAGS.baseline_checkpoint))
 
     with default_graph.as_default() as graph:
         # number of batches
