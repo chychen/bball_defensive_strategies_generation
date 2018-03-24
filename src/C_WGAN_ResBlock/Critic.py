@@ -94,6 +94,12 @@ class C_MODEL(object):
             neg_scores = (self.fake_scores + mismatched_scores) / 2.0
         else:
             neg_scores = self.fake_scores
+        
+        f_fake = tf.reduce_mean(self.fake_scores)
+        f_real = tf.reduce_mean(self.real_scores)
+        with tf.name_scope('C_loss') as scope:
+            self.EM_dist = f_real - f_fake
+            self.summary_em = tf.summary.scalar('Earth Moving Distance', self.EM_dist)
 
         # loss function
         self.__loss = self.__loss_fn(
@@ -225,7 +231,7 @@ class C_MODEL(object):
                 vec_ball_2_teamB, ord='euclidean', axis=-1)
             dist_ball_2_basket = tf.norm(
                 vec_ball_2_basket, ord='euclidean', axis=-1)
-            theta = tf.math.acos(b2teamB_dot_b2basket /
+            theta = tf.acos(b2teamB_dot_b2basket /
                                  (dist_ball_2_teamB * dist_ball_2_basket+1e-8))
             open_shot_score_all = (theta + 1.0) * (dist_ball_2_teamB + 1.0)
             open_shot_score_min = tf.reduce_min(
@@ -362,11 +368,7 @@ class C_MODEL(object):
         feed_dict = {self.__G_samples: G_samples,
                      self.__matched_cond: conditions,
                      self.__real_data: real_data}
-        f_fake = tf.reduce_mean(self.fake_scores)
-        f_real = tf.reduce_mean(self.real_scores)
-        EM_dist = f_fake - f_real
-        summary_em = tf.summary.scalar('Earth Moving Distance', EM_dist)
-        em_dist_val, summary = sess.run(
-            [EM_dist, summary_em], feed_dict=feed_dict)
+        _, summary = sess.run(
+            [self.EM_dist, self.summary_em], feed_dict=feed_dict)
         self.baseline_summary_writer.add_summary(
             summary, global_step=global_steps)

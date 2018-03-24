@@ -133,14 +133,16 @@ def z_samples():
 def training(train_data, valid_data, data_factory, config, default_graph, baseline_graph=None):
     """ training
     """
-    baseline_sess = tf.Session(baseline_graph)
-    default_sess = tf.Session(default_graph)
+    default_sess = tf.Session(graph=default_graph)
 
     if baseline_graph is not None:
+        baseline_sess = tf.Session(graph=baseline_graph)
         with baseline_graph.as_default() as graph:
-            saver = tf.train.Saver()
             baseline_C = C_MODEL(config, graph)
+            saver = tf.train.Saver()
             saver.restore(baseline_sess, FLAGS.baseline_checkpoint)
+            print('successfully restore baseline critic from checkpoint: %s' %
+                    (FLAGS.baseline_checkpoint))
 
     with default_graph.as_default() as graph:
 
@@ -271,7 +273,8 @@ def main(_):
     # config setting
     config = TrainingConfig()
 
-    baseline_graph = tf.Graph()
+    if FLAGS.baseline_checkpoint is not None:
+        baseline_graph = tf.Graph()
     default_graph = tf.Graph()
 
     training(train_data, valid_data, data_factory,
