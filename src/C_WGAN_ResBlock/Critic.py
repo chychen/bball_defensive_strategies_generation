@@ -212,7 +212,7 @@ class C_MODEL(object):
                 self.batch_size, self.seq_length, 1, 1])
             basket_pos = tf.concat(
                 [basket_right_x, basket_right_y], axis=-1)
-            # open shot penalty = amin((1-cos) * dist_ball_2_teamB)
+            # open shot penalty = amin((theta + 1.0) * (dist_ball_2_teamB + 1.0))
             vec_ball_2_teamB = ball_pos - teamB_pos
             vec_ball_2_basket = ball_pos - basket_pos
             b2teamB_dot_b2basket = tf.matmul(
@@ -223,10 +223,9 @@ class C_MODEL(object):
                 vec_ball_2_teamB, ord='euclidean', axis=-1)
             dist_ball_2_basket = tf.norm(
                 vec_ball_2_basket, ord='euclidean', axis=-1)
-            one_sub_cosine = 1 - b2teamB_dot_b2basket / \
-                (dist_ball_2_teamB * dist_ball_2_basket)
-            open_shot_score_all = one_sub_cosine + dist_ball_2_teamB
-            # open_shot_score_all = one_sub_cosine * dist_ball_2_teamB
+            theta = tf.math.acos(b2teamB_dot_b2basket /
+                                 (dist_ball_2_teamB * dist_ball_2_basket+1e-8))
+            open_shot_score_all = (theta + 1.0) * (dist_ball_2_teamB + 1.0)
             open_shot_score_min = tf.reduce_min(
                 open_shot_score_all, axis=-1)
             open_shot_score = tf.reduce_mean(open_shot_score_min)

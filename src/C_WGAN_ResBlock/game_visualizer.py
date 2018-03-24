@@ -138,9 +138,12 @@ def test():
     target_data_len = np.load('../../data/FixedFPS5Length.npy')[:10000:100]
     print(target_data.shape)
     print(target_data_len.shape)
-    for i in range(target_data.shape[0]):
-        plot_data(target_data[0, i], length=target_data_len[i],
-                  file_path=opt.save_path + 'play_{}.mp4'.format(i), if_save=opt.save)
+    for i in range(target_data.shape[1]):
+        try:
+            plot_data(target_data[0, i], length=target_data_len[i],
+                      file_path=opt.save_path + 'play_{}.mp4'.format(i), if_save=opt.save)
+        except:
+            print('Failed to draw!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
 
 
 if __name__ == '__main__':
