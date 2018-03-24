@@ -19,7 +19,7 @@ class C_MODEL(object):
     """ Model of Critic Network
     """
 
-    def __init__(self, config, graph):
+    def __init__(self, config, graph, if_training=True):
         """ Build up the graph
         Inputs
         ------
@@ -53,6 +53,7 @@ class C_MODEL(object):
         self.openshot_penalty_lambda = config.openshot_penalty_lambda
         self.if_use_mismatched = config.if_use_mismatched
         self.n_filters = config.n_filters
+        self.if_training = if_training
 
         # steps
         self.__global_steps = tf.train.get_or_create_global_step(graph=graph)
@@ -71,17 +72,19 @@ class C_MODEL(object):
             self.__build_model()
 
             # summary
-            self.__summary_op = tf.summary.merge(tf.get_collection('C'))
-            self.__summary_histogram_op = tf.summary.merge(
-                tf.get_collection('C_histogram'))
-            self.__summary_valid_op = tf.summary.merge(
-                tf.get_collection('C_valid'))
-            self.summary_writer = tf.summary.FileWriter(
-                self.log_dir + 'C')
-            self.valid_summary_writer = tf.summary.FileWriter(
-                self.log_dir + 'C_valid')
-            self.baseline_summary_writer = tf.summary.FileWriter(
-                self.log_dir + 'Baseline_C')
+            if self.if_training:
+                self.__summary_op = tf.summary.merge(tf.get_collection('C'))
+                self.__summary_histogram_op = tf.summary.merge(
+                    tf.get_collection('C_histogram'))
+                self.__summary_valid_op = tf.summary.merge(
+                    tf.get_collection('C_valid'))
+                self.summary_writer = tf.summary.FileWriter(
+                    self.log_dir + 'C')
+                self.valid_summary_writer = tf.summary.FileWriter(
+                    self.log_dir + 'C_valid')
+            else:
+                self.baseline_summary_writer = tf.summary.FileWriter(
+                    self.log_dir + 'Baseline_C')
 
     def __build_model(self):
         self.real_scores = self.inference(
@@ -100,25 +103,26 @@ class C_MODEL(object):
         with tf.name_scope('C_loss') as scope:
             self.EM_dist = f_real - f_fake
             self.summary_em = tf.summary.scalar('Earth Moving Distance', self.EM_dist)
-
-        # loss function
-        self.__loss = self.__loss_fn(
-            self.__real_data, self.__G_samples, neg_scores, self.real_scores, self.penalty_lambda)
-        theta = libs.get_var_list('C')
-        with tf.name_scope('optimizer') as scope:
-            # Critic train one iteration, step++
-            assign_add_ = tf.assign_add(self.__steps, 1)
-            with tf.control_dependencies([assign_add_]):
-                optimizer = tf.train.AdamOptimizer(
-                    learning_rate=self.learning_rate, beta1=0.5, beta2=0.9)
-                grads = tf.gradients(self.__loss, theta)
-                grads = list(zip(grads, theta))
-                self.__train_op = optimizer.apply_gradients(
-                    grads_and_vars=grads, global_step=self.__global_steps)
-        # histogram logging
-        for grad, var in grads:
-            tf.summary.histogram(
-                var.name + '_gradient', grad, collections=['C_histogram'])
+        
+        if self.if_training:
+            # loss function
+            self.__loss = self.__loss_fn(
+                self.__real_data, self.__G_samples, neg_scores, self.real_scores, self.penalty_lambda)
+            theta = libs.get_var_list('C')
+            with tf.name_scope('optimizer') as scope:
+                # Critic train one iteration, step++
+                assign_add_ = tf.assign_add(self.__steps, 1)
+                with tf.control_dependencies([assign_add_]):
+                    optimizer = tf.train.AdamOptimizer(
+                        learning_rate=self.learning_rate, beta1=0.5, beta2=0.9)
+                    grads = tf.gradients(self.__loss, theta)
+                    grads = list(zip(grads, theta))
+                    self.__train_op = optimizer.apply_gradients(
+                        grads_and_vars=grads, global_step=self.__global_steps)
+            # histogram logging
+            for grad, var in grads:
+                tf.summary.histogram(
+                    var.name + '_gradient', grad, collections=['C_histogram'])
 
     def inference(self, inputs, conds, reuse=False):
         """

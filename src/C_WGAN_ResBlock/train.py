@@ -31,7 +31,7 @@ tf.app.flags.DEFINE_string('restore_path', None,
                            "path of saving model eg: checkpoints/model.ckpt-5")
 tf.app.flags.DEFINE_string('baseline_checkpoint', None,
                            "path of baseline model eg: checkpoints/model.ckpt-5")
-                           
+
 # input parameters
 tf.app.flags.DEFINE_integer('seq_length', 50,
                             "the maximum length of one training data")
@@ -138,14 +138,18 @@ def training(train_data, valid_data, data_factory, config, default_graph, baseli
     if baseline_graph is not None:
         baseline_sess = tf.Session(graph=baseline_graph)
         with baseline_graph.as_default() as graph:
-            baseline_C = C_MODEL(config, graph)
-            saver = tf.train.Saver()
-            saver.restore(baseline_sess, FLAGS.baseline_checkpoint)
-            print('successfully restore baseline critic from checkpoint: %s' %
-                    (FLAGS.baseline_checkpoint))
+            with tf.variable_scope('baseline'):
+                var_dict = {}
+                baseline_C = C_MODEL(config, graph, if_training=False)
+                for baseline_var in tf.trainable_variables():
+                    var_name = baseline_var.name[9:-2]
+                    var_dict[var_name] = baseline_var
+                saver = tf.train.Saver(var_list=var_dict)
+                saver.restore(baseline_sess, FLAGS.baseline_checkpoint)
+                print('successfully restore baseline critic from checkpoint: %s' %
+                      (FLAGS.baseline_checkpoint))
 
     with default_graph.as_default() as graph:
-
         # number of batches
         num_batches = train_data['A'].shape[0] // FLAGS.batch_size
         num_valid_batches = valid_data['A'].shape[0] // FLAGS.batch_size
@@ -160,13 +164,12 @@ def training(train_data, valid_data, data_factory, config, default_graph, baseli
         tfconfig = tf.ConfigProto()
         tfconfig.gpu_options.allow_growth = True
 
-
         default_sess.run(init)
         # restore model if exist
         if FLAGS.restore_path is not None:
             saver.restore(default_sess, FLAGS.restore_path)
             print('successfully restore model from checkpoint: %s' %
-                    (FLAGS.restore_path))
+                  (FLAGS.restore_path))
         D_loss_mean = 0.0
         D_valid_loss_mean = 0.0
         G_loss_mean = 0.0
@@ -192,9 +195,9 @@ def training(train_data, valid_data, data_factory, config, default_graph, baseli
                             train_data['B'].shape[0] - FLAGS.batch_size)
                     # data
                     real_samples = train_data['B'][data_idx:data_idx +
-                                                    FLAGS.batch_size]
+                                                   FLAGS.batch_size]
                     real_conds = train_data['A'][data_idx:data_idx +
-                                                    FLAGS.batch_size]
+                                                 FLAGS.batch_size]
                     # samples
                     fake_samples = G.generate(
                         default_sess, z_samples(), real_conds)
@@ -210,14 +213,14 @@ def training(train_data, valid_data, data_factory, config, default_graph, baseli
                         FLAGS.batch_size % (
                             valid_data['B'].shape[0] - FLAGS.batch_size)
                     valid_real_samples = valid_data['B'][data_idx:data_idx +
-                                                            FLAGS.batch_size]
+                                                         FLAGS.batch_size]
                     valid_real_conds = valid_data['A'][data_idx:data_idx +
-                                                        FLAGS.batch_size]
+                                                       FLAGS.batch_size]
                     fake_samples = G.generate(
                         default_sess, z_samples(), valid_real_conds)
                     D_valid_loss_mean = C.log_valid_loss(
                         default_sess, fake_samples, valid_real_samples, valid_real_conds)
-                    
+
                     if baseline_graph is not None:
                         # baseline critic eval
                         baseline_C.eval_EM_distance(
@@ -233,12 +236,12 @@ def training(train_data, valid_data, data_factory, config, default_graph, baseli
                     end_time = time.time()
                     log_counter = 0
                     print("%d, epoches, %d steps, mean C_loss: %f, mean C_valid_loss: %f, mean G_loss: %f, time cost: %f(sec)" %
-                            (epoch_id,
-                            global_steps,
-                            D_loss_mean,
-                            D_valid_loss_mean,
-                            G_loss_mean,
-                            (end_time - start_time)))
+                          (epoch_id,
+                           global_steps,
+                           D_loss_mean,
+                           D_valid_loss_mean,
+                           G_loss_mean,
+                           (end_time - start_time)))
                     start_time = time.time()  # save checkpoints
             # save model
             if (epoch_id % FLAGS.save_model_freq) == 0 or epoch_id == FLAGS.total_epoches - 1:
