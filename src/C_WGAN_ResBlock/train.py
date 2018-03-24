@@ -25,12 +25,15 @@ tf.app.flags.DEFINE_string('comment', None,
 # path parameters
 tf.app.flags.DEFINE_string('folder_path', None,
                            "summary directory")
-tf.app.flags.DEFINE_string('data_path', '../../data/FEATURES-4.npy',
+tf.app.flags.DEFINE_string('data_path', '../../data/FixedFPS5-Train.npy',
                            "summary directory")
 tf.app.flags.DEFINE_string('restore_path', None,
                            "path of saving model eg: checkpoints/model.ckpt-5")
+tf.app.flags.DEFINE_string('baseline_checkpoint', None,
+                           "path of baseline model eg: checkpoints/model.ckpt-5")
+
 # input parameters
-tf.app.flags.DEFINE_integer('seq_length', 100,
+tf.app.flags.DEFINE_integer('seq_length', 50,
                             "the maximum length of one training data")
 tf.app.flags.DEFINE_integer('latent_dims', 100,
                             "dimensions of latant variable")
@@ -118,10 +121,8 @@ class TrainingConfig(object):
         self.if_use_mismatched = FLAGS.if_use_mismatched
         self.n_filters = FLAGS.n_filters
         with open(os.path.join(FLAGS.folder_path, 'hyper_parameters.json'), 'w') as outfile:
-            json.dump(FLAGS.__dict__['__flags'], outfile)
-
-    def show(self):
-        print(FLAGS.__dict__['__flags'])
+            json.dump(self.__dict__, outfile, default=repr)
+        print(self.__dict__)
 
 
 def z_samples():
@@ -129,27 +130,49 @@ def z_samples():
         0., 1., size=[FLAGS.batch_size, FLAGS.latent_dims])
 
 
-def training(train_data, valid_data, data_factory, config, graph):
+def training(train_data, valid_data, data_factory, config, default_graph, baseline_graph=None):
     """ training
     """
-    # number of batches
-    num_batches = train_data['A'].shape[0] // FLAGS.batch_size
-    num_valid_batches = valid_data['A'].shape[0] // FLAGS.batch_size
-    print('num_batches', num_batches)
-    print('num_valid_batches', num_valid_batches)
-    # model
-    C = C_MODEL(config, graph)
-    G = G_MODEL(config, C.loss_for_G, graph)
-    init = tf.global_variables_initializer()
-    # saver for later restore
-    saver = tf.train.Saver(max_to_keep=0)  # 0 -> keep them all
-    config = tf.ConfigProto()
-    config.gpu_options.allow_growth = True
-    with tf.Session(config=config) as sess:
-        sess.run(init)
+    default_sess = tf.Session(graph=default_graph)
+
+    if baseline_graph is not None:
+        baseline_sess = tf.Session(graph=baseline_graph)
+        with baseline_graph.as_default() as graph:
+            # with tf.variable_scope('baseline'):
+            #     var_dict = {}
+            #     baseline_C = C_MODEL(config, graph, if_training=False)
+            #     for baseline_var in tf.trainable_variables():
+            #         var_name = baseline_var.name[9:-2]
+            #         var_dict[var_name] = baseline_var
+            #     saver = tf.train.Saver(var_list=var_dict)
+            #     saver.restore(baseline_sess, FLAGS.baseline_checkpoint)
+            #     print('successfully restore baseline critic from checkpoint: %s' %
+            #           (FLAGS.baseline_checkpoint))
+            baseline_C = C_MODEL(config, graph, if_training=False)
+            saver = tf.train.Saver()
+            saver.restore(baseline_sess, FLAGS.baseline_checkpoint)
+            print('successfully restore baseline critic from checkpoint: %s' %
+                    (FLAGS.baseline_checkpoint))
+
+    with default_graph.as_default() as graph:
+        # number of batches
+        num_batches = train_data['A'].shape[0] // FLAGS.batch_size
+        num_valid_batches = valid_data['A'].shape[0] // FLAGS.batch_size
+        print('num_batches', num_batches)
+        print('num_valid_batches', num_valid_batches)
+        # model
+        C = C_MODEL(config, graph)
+        G = G_MODEL(config, C.loss_for_G, graph)
+        init = tf.global_variables_initializer()
+        # saver for later restore
+        saver = tf.train.Saver(max_to_keep=0)  # 0 -> keep them all
+        tfconfig = tf.ConfigProto()
+        tfconfig.gpu_options.allow_growth = True
+
+        default_sess.run(init)
         # restore model if exist
         if FLAGS.restore_path is not None:
-            saver.restore(sess, FLAGS.restore_path)
+            saver.restore(default_sess, FLAGS.restore_path)
             print('successfully restore model from checkpoint: %s' %
                   (FLAGS.restore_path))
         D_loss_mean = 0.0
@@ -170,6 +193,7 @@ def training(train_data, valid_data, data_factory, config, graph):
                 else:
                     num_train_D = FLAGS.num_train_D
                 for id_ in range(num_train_D):
+
                     # make sure not exceed the boundary
                     data_idx = batch_id * \
                         FLAGS.batch_size % (
@@ -181,10 +205,11 @@ def training(train_data, valid_data, data_factory, config, graph):
                                                  FLAGS.batch_size]
                     # samples
                     fake_samples = G.generate(
-                        sess, z_samples(), real_conds)
+                        default_sess, z_samples(), real_conds)
+
                     # train Critic
                     D_loss_mean, global_steps = C.step(
-                        sess, fake_samples, real_samples, real_conds)
+                        default_sess, fake_samples, real_samples, real_conds)
                     batch_id += 1
                     log_counter += 1
 
@@ -197,13 +222,18 @@ def training(train_data, valid_data, data_factory, config, graph):
                     valid_real_conds = valid_data['A'][data_idx:data_idx +
                                                        FLAGS.batch_size]
                     fake_samples = G.generate(
-                        sess, z_samples(), valid_real_conds)
+                        default_sess, z_samples(), valid_real_conds)
                     D_valid_loss_mean = C.log_valid_loss(
-                        sess, fake_samples, valid_real_samples, valid_real_conds)
+                        default_sess, fake_samples, valid_real_samples, valid_real_conds)
+
+                    if baseline_graph is not None:
+                        # baseline critic eval
+                        baseline_C.eval_EM_distance(
+                            baseline_sess, fake_samples, valid_real_samples, valid_real_conds, global_steps)
 
                 # train G
                 G_loss_mean, global_steps = G.step(
-                    sess, z_samples(), real_conds, real_samples)
+                    default_sess, z_samples(), real_conds, real_samples)
                 log_counter += 1
 
                 # logging
@@ -221,38 +251,42 @@ def training(train_data, valid_data, data_factory, config, graph):
             # save model
             if (epoch_id % FLAGS.save_model_freq) == 0 or epoch_id == FLAGS.total_epoches - 1:
                 save_path = saver.save(
-                    sess, CHECKPOINTS_PATH + "model.ckpt",
+                    default_sess, CHECKPOINTS_PATH + "model.ckpt",
                     global_step=global_steps)
                 print("Model saved in file: %s" % save_path)
             # plot generated sample
             if (epoch_id % FLAGS.save_result_freq) == 0 or epoch_id == FLAGS.total_epoches - 1:
                 # fake
-                samples = G.generate(sess, z_samples(), real_conds)
+                samples = G.generate(default_sess, z_samples(), real_conds)
                 concat_ = np.concatenate([real_conds, samples], axis=-1)
                 fake_result = data_factory.recover_data(concat_)
                 game_visualizer.plot_data(
                     fake_result[0], FLAGS.seq_length, file_path=SAMPLE_PATH + str(global_steps) + '_fake.mp4', if_save=True)
                 # real
-                concat_ = np.concatenate([real_conds, real_samples], axis=-1)
+                concat_ = np.concatenate(
+                    [real_conds, real_samples], axis=-1)
                 real_result = data_factory.recover_data(concat_)
                 game_visualizer.plot_data(
                     real_result[0], FLAGS.seq_length, file_path=SAMPLE_PATH + str(global_steps) + '_real.mp4', if_save=True)
 
 
 def main(_):
-    with tf.get_default_graph().as_default() as graph:
-        real_data = np.load(FLAGS.data_path)[:, :FLAGS.seq_length, :, :]
-        print('real_data.shape', real_data.shape)
-        # normalize
-        data_factory = DataFactory(real_data)
-        train_data, valid_data = data_factory.fetch_data()
-        print(train_data['A'].shape)
-        print(valid_data['A'].shape)
-        # config setting
-        config = TrainingConfig()
-        config.show()
-        # train
-        training(train_data, valid_data, data_factory, config, graph)
+    real_data = np.load(FLAGS.data_path)[:, :FLAGS.seq_length, :, :]
+    print('real_data.shape', real_data.shape)
+    # normalize
+    data_factory = DataFactory(real_data)
+    train_data, valid_data = data_factory.fetch_data()
+    print(train_data['A'].shape)
+    print(valid_data['A'].shape)
+    # config setting
+    config = TrainingConfig()
+
+    if FLAGS.baseline_checkpoint is not None:
+        baseline_graph = tf.Graph()
+    default_graph = tf.Graph()
+
+    training(train_data, valid_data, data_factory,
+             config, default_graph, baseline_graph)
 
 
 if __name__ == '__main__':
@@ -260,8 +294,9 @@ if __name__ == '__main__':
     assert FLAGS.folder_path is not None, 'folder_path is required, please add it by --folder_path'
     if FLAGS.restore_path is None:
         if os.path.exists(FLAGS.folder_path):
-            ans = input('"%s" will be removed!! are you sure (y/N)? ' % FLAGS.folder_path)
-            if ans == 'Y' or ans =='y':
+            ans = input('"%s" will be removed!! are you sure (y/N)? ' %
+                        FLAGS.folder_path)
+            if ans == 'Y' or ans == 'y':
                 # when not restore, remove follows (old) for new training
                 shutil.rmtree(FLAGS.folder_path)
                 print('rm -rf "%s" complete!' % FLAGS.folder_path)

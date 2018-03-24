@@ -3,7 +3,7 @@
 [[Arxiv]]()
 
 ## Architechture
-![](https://lh4.googleusercontent.com/rW_bzu4dIrRyARX2QIdMtORnf-H_G65UkBFYKh_4TbTAspRHnfu0ruy4B3E)
+![](https://lh6.googleusercontent.com/dkqUgCKY5tZ-wL5eujfFVcSs6jDpb_ACROMPLquDNZVwbs2Q5nUaVcRUU24)
 
 Tensorflow implementation for generating basketball realistic defensive strategies.
 For example:
@@ -58,25 +58,45 @@ cd ../src/C_WGAN_ResBlock/
 python train.py --comment='first training' --folder_path='version_1'
 ```
 
+### Moniter Training
+
+- You can see all training details on through tensorboard including histogram, distribution, and several scalar metrics during training.
+
+```bash
+# (default url) -> {YOUR_IP_ADDR}:6006 i.e. 127.0.0.1:6006
+tensorboard --logdir='version_1' &
+```
+
+- example (with latent weight penalty lambda=1.0)
+
+![](https://lh6.googleusercontent.com/Z8T0VYV0o6DHqpENgGRxODXqsYTbXnvemH5ihrddfd6GVpgeJL2m1AOxc-s)
+
+- example (without latent weight penalty lambda=0.0)
+
+![](https://lh6.googleusercontent.com/5F0np2ynG-lIeBM9DK9vNmayAhpJGsr6XVJHGwJ6JZR5FniNr5cRcldhyJE)
+
 ## Evaluation
 
 ### Comparison
+
 ![](https://lh5.googleusercontent.com/HYH6p0a1PuOfs65nhbg5BBfX2NRRw-80d6WDdjlLxH8pIOmvIG-u-CfK3hE)
 
 ## Generative Results
 
-- User Study Link?
+- User Study Result summary
 - Learn to defense pick and roll?
+
 ![](https://lh6.googleusercontent.com/yHs8-KTKGiGSL1tq9jKzJul8YpTRfX1kGWd-5lFoZ2k2E7T4a8zJTpMvxNY)
+
 - More Results, please see [100-results-vedio](link)
 
 ## Data Preprocessing
+
 Dataset comes from STATS SportVU NBA 2015-2016, containing players (x,y) and ball(x,y,z) position on the court during a game, tracked at 25 frames per second. privided by ![[link]](https://github.com/sealneaward/nba-movement-data) We further:
+
 - Take all offensive sequences 
 - Start of seqeunce: offensive player inbounds or brings ball past half-court
-- End of sequence: offence takes a shot, either missed or made. 
-- Jimmy
-- Nsknsl
+- End of sequence: offence takes a shot, either missed or made.
 
 ## Citation
 

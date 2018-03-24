@@ -19,7 +19,7 @@ class C_MODEL(object):
     """ Model of Critic Network
     """
 
-    def __init__(self, config, graph):
+    def __init__(self, config, graph, if_training=True):
         """ Build up the graph
         Inputs
         ------
@@ -53,6 +53,7 @@ class C_MODEL(object):
         self.openshot_penalty_lambda = config.openshot_penalty_lambda
         self.if_use_mismatched = config.if_use_mismatched
         self.n_filters = config.n_filters
+        self.if_training = if_training
 
         # steps
         self.__global_steps = tf.train.get_or_create_global_step(graph=graph)
@@ -71,18 +72,22 @@ class C_MODEL(object):
             self.__build_model()
 
             # summary
-            self.__summary_op = tf.summary.merge(tf.get_collection('C'))
-            self.__summary_histogram_op = tf.summary.merge(
-                tf.get_collection('C_histogram'))
-            self.__summary_valid_op = tf.summary.merge(
-                tf.get_collection('C_valid'))
-            self.summary_writer = tf.summary.FileWriter(
-                self.log_dir + 'C')
-            self.valid_summary_writer = tf.summary.FileWriter(
-                self.log_dir + 'C_valid')
+            if self.if_training:
+                self.__summary_op = tf.summary.merge(tf.get_collection('C'))
+                self.__summary_histogram_op = tf.summary.merge(
+                    tf.get_collection('C_histogram'))
+                self.__summary_valid_op = tf.summary.merge(
+                    tf.get_collection('C_valid'))
+                self.summary_writer = tf.summary.FileWriter(
+                    self.log_dir + 'C')
+                self.valid_summary_writer = tf.summary.FileWriter(
+                    self.log_dir + 'C_valid')
+            else:
+                self.baseline_summary_writer = tf.summary.FileWriter(
+                    self.log_dir + 'Baseline_C')
 
     def __build_model(self):
-        real_scores = self.inference(
+        self.real_scores = self.inference(
             self.__real_data, self.__matched_cond)
         self.fake_scores = self.inference(
             self.__G_samples, self.__matched_cond, reuse=True)
@@ -93,24 +98,33 @@ class C_MODEL(object):
         else:
             neg_scores = self.fake_scores
 
-        # loss function
-        self.__loss = self.__loss_fn(
-            self.__real_data, self.__G_samples, neg_scores, real_scores, self.penalty_lambda)
-        theta = libs.get_var_list('C')
-        with tf.name_scope('optimizer') as scope:
-            # Critic train one iteration, step++
-            assign_add_ = tf.assign_add(self.__steps, 1)
-            with tf.control_dependencies([assign_add_]):
-                optimizer = tf.train.AdamOptimizer(
-                    learning_rate=self.learning_rate, beta1=0.5, beta2=0.9)
-                grads = tf.gradients(self.__loss, theta)
-                grads = list(zip(grads, theta))
-                self.__train_op = optimizer.apply_gradients(
-                    grads_and_vars=grads, global_step=self.__global_steps)
-        # histogram logging
-        for grad, var in grads:
-            tf.summary.histogram(
-                var.name + '_gradient', grad, collections=['C_histogram'])
+        f_fake = tf.reduce_mean(self.fake_scores)
+        f_real = tf.reduce_mean(self.real_scores)
+
+        if self.if_training:
+            # loss function
+            self.__loss = self.__loss_fn(
+                self.__real_data, self.__G_samples, neg_scores, self.real_scores, self.penalty_lambda)
+            theta = libs.get_var_list('C')
+            with tf.name_scope('optimizer') as scope:
+                # Critic train one iteration, step++
+                assign_add_ = tf.assign_add(self.__steps, 1)
+                with tf.control_dependencies([assign_add_]):
+                    optimizer = tf.train.AdamOptimizer(
+                        learning_rate=self.learning_rate, beta1=0.5, beta2=0.9)
+                    grads = tf.gradients(self.__loss, theta)
+                    grads = list(zip(grads, theta))
+                    self.__train_op = optimizer.apply_gradients(
+                        grads_and_vars=grads, global_step=self.__global_steps)
+            # histogram logging
+            for grad, var in grads:
+                tf.summary.histogram(
+                    var.name + '_gradient', grad, collections=['C_histogram'])
+        else:
+            with tf.name_scope('C_loss') as scope:
+                self.EM_dist = f_real - f_fake
+                self.summary_em = tf.summary.scalar(
+                    'Earth Moving Distance', self.EM_dist)
 
     def inference(self, inputs, conds, reuse=False):
         """
@@ -193,8 +207,7 @@ class C_MODEL(object):
             reals, conds, if_log=if_log, log_scope_name='real')
         fake_os_penalty = self.__open_shot_score(
             fakes, conds, if_log=if_log, log_scope_name='fake')
-        # return tf.abs(real_os_penalty - fake_os_penalty)
-        return fake_os_penalty
+        return tf.abs(real_os_penalty - fake_os_penalty)
 
     def __open_shot_score(self, inputs, conds, if_log, log_scope_name=''):
         """
@@ -213,7 +226,7 @@ class C_MODEL(object):
                 self.batch_size, self.seq_length, 1, 1])
             basket_pos = tf.concat(
                 [basket_right_x, basket_right_y], axis=-1)
-            # open shot penalty = amin((1-cos) * dist_ball_2_teamB)
+            # open shot penalty = amin((theta + 1.0) * (dist_ball_2_teamB + 1.0))
             vec_ball_2_teamB = ball_pos - teamB_pos
             vec_ball_2_basket = ball_pos - basket_pos
             b2teamB_dot_b2basket = tf.matmul(
@@ -224,9 +237,15 @@ class C_MODEL(object):
                 vec_ball_2_teamB, ord='euclidean', axis=-1)
             dist_ball_2_basket = tf.norm(
                 vec_ball_2_basket, ord='euclidean', axis=-1)
-            one_sub_cosine = 1 - b2teamB_dot_b2basket / \
-                (dist_ball_2_teamB * dist_ball_2_basket)
-            open_shot_score_all = one_sub_cosine * dist_ball_2_teamB
+
+            theta = tf.acos(b2teamB_dot_b2basket /
+                            (dist_ball_2_teamB * dist_ball_2_basket+1e-3))  # avoid nan
+            open_shot_score_all = (theta + 1.0) * (dist_ball_2_teamB + 1.0)
+
+            # one_sub_cosine = 1 - b2teamB_dot_b2basket / \
+            #     (dist_ball_2_teamB * dist_ball_2_basket)
+            # open_shot_score_all = one_sub_cosine + dist_ball_2_teamB
+
             open_shot_score_min = tf.reduce_min(
                 open_shot_score_all, axis=-1)
             open_shot_score = tf.reduce_mean(open_shot_score_min)
@@ -354,3 +373,14 @@ class C_MODEL(object):
         self.valid_summary_writer.add_summary(
             summary, global_step=global_steps)
         return loss
+
+    def eval_EM_distance(self, sess, G_samples, real_data, conditions, global_steps):
+        """ 
+        """
+        feed_dict = {self.__G_samples: G_samples,
+                     self.__matched_cond: conditions,
+                     self.__real_data: real_data}
+        _, summary = sess.run(
+            [self.EM_dist, self.summary_em], feed_dict=feed_dict)
+        self.baseline_summary_writer.add_summary(
+            summary, global_step=global_steps)

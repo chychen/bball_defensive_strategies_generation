@@ -30,7 +30,7 @@ FLAGS = tf.app.flags.FLAGS
 # path parameters
 tf.app.flags.DEFINE_string('folder_path', None,
                            "summary directory")
-tf.app.flags.DEFINE_string('data_path', '../../data/FEATURES-4.npy',
+tf.app.flags.DEFINE_string('data_path', '../../data/FixedFPS5-Train.npy',
                            "summary directory")
 tf.app.flags.DEFINE_string('restore_path', None,
                            "path of saving model eg: checkpoints/model.ckpt-5")
@@ -38,7 +38,7 @@ tf.app.flags.DEFINE_string('restore_path', None,
 tf.app.flags.DEFINE_integer('seq_length', 100,
                             "the maximum length of one training data")
 # model parameters
-tf.app.flags.DEFINE_string('gpus', '0',
+tf.app.flags.DEFINE_string('gpus', '1',
                            "define visible gpus")
 tf.app.flags.DEFINE_integer('batch_size', 128,
                             "batch size")
@@ -130,7 +130,7 @@ def mode_1(sess, graph, save_path, is_valid=FLAGS.is_valid):
     )
     team_AB = data_factory.normalize(team_AB)
     print(team_AB.shape)
-    dummy_AB = np.zeros(shape=[98,100,23])
+    dummy_AB = np.zeros(shape=[98, 100, 23])
     team_AB = np.concatenate([team_AB, dummy_AB], axis=0)
     team_A = team_AB[:, :, :13]
     team_B = team_AB[:, :, 13:]
@@ -173,11 +173,11 @@ def mode_1(sess, graph, save_path, is_valid=FLAGS.is_valid):
     print(np.array(results_A_real_B).shape)
     print(np.array(results_critic_scores).shape)
     np.save(save_path + 'results_A_fake_B.npy',
-            np.array(results_A_fake_B)[:,:30].astype(np.float32).reshape([FLAGS.n_latents, 30, FLAGS.seq_length, 23]))
+            np.array(results_A_fake_B)[:, :30].astype(np.float32).reshape([FLAGS.n_latents, 30, FLAGS.seq_length, 23]))
     np.save(save_path + 'results_A_real_B.npy',
             np.array(results_A_real_B)[:30].astype(np.float32).reshape([30, FLAGS.seq_length, 23]))
     np.save(save_path + 'results_critic_scores.npy',
-            np.array(results_critic_scores)[:,:30].astype(np.float32).reshape([FLAGS.n_latents, 30]))
+            np.array(results_critic_scores)[:, :30].astype(np.float32).reshape([FLAGS.n_latents, 30]))
     print('!!Completely Saved!!')
 
 
@@ -650,8 +650,9 @@ def mode_9(sess, graph, save_path, is_valid=FLAGS.is_valid):
     # DataFactory
     data_factory = DataFactory(real_data)
     # target data
-    target_data = np.load('FULL.npy')
-    target_length = np.load('FULL-LEN.npy')
+    target_data = np.load('../../data/FixedFPS5.npy')[:10000:100]
+    target_length = np.load('../../data/FixedFPS5Length.npy')[:10000:100]
+    print('target_data.shape', target_data.shape)
     team_AB = np.concatenate(
         [
             # ball
@@ -676,9 +677,11 @@ def mode_9(sess, graph, save_path, is_valid=FLAGS.is_valid):
     for idx in range(team_AB.shape[0]):
         # given 100(FLAGS.n_latents) latents generate 100 results on same condition at once
         real_samples = team_B[idx:idx + 1, :target_length[idx]]
-        real_samples = np.concatenate([real_samples for _ in range(FLAGS.n_latents)], axis=0)
+        real_samples = np.concatenate(
+            [real_samples for _ in range(FLAGS.n_latents)], axis=0)
         real_conds = team_A[idx:idx + 1, :target_length[idx]]
-        real_conds = np.concatenate([real_conds for _ in range(FLAGS.n_latents)], axis=0)
+        real_conds = np.concatenate(
+            [real_conds for _ in range(FLAGS.n_latents)], axis=0)
         # generate result
         latents = z_samples(FLAGS.n_latents)
         feed_dict = {
@@ -694,11 +697,13 @@ def mode_9(sess, graph, save_path, is_valid=FLAGS.is_valid):
         }
         em_dist = sess.run(
             critic_scores_t, feed_dict=feed_dict)
-        recoverd_A_fake_B = data_factory.recover_data(np.concatenate([real_conds, result], axis=-1))
+        recoverd_A_fake_B = data_factory.recover_data(
+            np.concatenate([real_conds, result], axis=-1))
         # padding to length=200
         dummy = np.zeros(
             shape=[FLAGS.n_latents, team_AB.shape[1] - target_length[idx], team_AB.shape[2]])
-        temp_A_fake_B_concat = np.concatenate([recoverd_A_fake_B, dummy], axis=1)
+        temp_A_fake_B_concat = np.concatenate(
+            [recoverd_A_fake_B, dummy], axis=1)
         results_A_fake_B.append(temp_A_fake_B_concat)
         results_critic_scores.append(em_dist)
     print(np.array(results_A_fake_B).shape)
