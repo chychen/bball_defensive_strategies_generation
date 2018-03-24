@@ -80,9 +80,11 @@ class C_MODEL(object):
                 self.log_dir + 'C')
             self.valid_summary_writer = tf.summary.FileWriter(
                 self.log_dir + 'C_valid')
+            self.baseline_summary_writer = tf.summary.FileWriter(
+                self.log_dir + 'Baseline_C')
 
     def __build_model(self):
-        real_scores = self.inference(
+        self.real_scores = self.inference(
             self.__real_data, self.__matched_cond)
         self.fake_scores = self.inference(
             self.__G_samples, self.__matched_cond, reuse=True)
@@ -95,7 +97,7 @@ class C_MODEL(object):
 
         # loss function
         self.__loss = self.__loss_fn(
-            self.__real_data, self.__G_samples, neg_scores, real_scores, self.penalty_lambda)
+            self.__real_data, self.__G_samples, neg_scores, self.real_scores, self.penalty_lambda)
         theta = libs.get_var_list('C')
         with tf.name_scope('optimizer') as scope:
             # Critic train one iteration, step++
@@ -353,3 +355,18 @@ class C_MODEL(object):
         self.valid_summary_writer.add_summary(
             summary, global_step=global_steps)
         return loss
+
+    def eval_EM_distance(self, sess, G_samples, real_data, conditions, global_steps):
+        """ 
+        """
+        feed_dict = {self.__G_samples: G_samples,
+                     self.__matched_cond: conditions,
+                     self.__real_data: real_data}
+        f_fake = tf.reduce_mean(self.fake_scores)
+        f_real = tf.reduce_mean(self.real_scores)
+        EM_dist = f_fake - f_real
+        summary_em = tf.summary.scalar('Earth Moving Distance', EM_dist)
+        em_dist_val, summary = sess.run(
+            [EM_dist, summary_em], feed_dict=feed_dict)
+        self.baseline_summary_writer.add_summary(
+            summary, global_step=global_steps)
