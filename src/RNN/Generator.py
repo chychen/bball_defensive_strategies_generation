@@ -69,8 +69,8 @@ class G_MODEL(object):
         self.__summary_op = tf.summary.merge(tf.get_collection('G'))
         self.__summary_histogram_op = tf.summary.merge(
             tf.get_collection('G_histogram'))
-        #self.__summary_weight_op = tf.summary.merge(
-            #tf.get_collection('G_weight'))
+        # self.__summary_weight_op = tf.summary.merge(
+        # tf.get_collection('G_weight'))
         self.summary_writer = tf.summary.FileWriter(
             self.log_dir + 'G', graph=graph)
 
@@ -100,8 +100,8 @@ class G_MODEL(object):
         return tf.maximum(features, self.leaky_relu_alpha * features)
 
     def _lstm_cell(self):
-        return rnn.LSTMCell(self.hidden_size,use_peepholes=True,initializer=None,
-                            forget_bias=1.0,state_is_tuple=True,activation=tf.tanh,
+        return rnn.LSTMCell(self.hidden_size, use_peepholes=True, initializer=None,
+                            forget_bias=1.0, state_is_tuple=True, activation=tf.tanh,
                             reuse=tf.get_variable_scope().reuse)
 
     def __G(self, latents, conds):
@@ -133,42 +133,45 @@ class G_MODEL(object):
                     input_ = tf.concat(
                         [left_x, left_y, right_x, right_y, conds], axis=-1)
             '''
-            cell = rnn.MultiRNNCell([self._lstm_cell() for _ in range(self.num_layers)])
-            state = cell.zero_state(batch_size=self.batch_size,dtype=tf.float32)
+            cell = rnn.MultiRNNCell([self._lstm_cell()
+                                     for _ in range(self.num_layers)])
+            state = cell.zero_state(
+                batch_size=self.batch_size, dtype=tf.float32)
             generated_point = latents
             inputs = conds
             output_ = []
             for time_step in range(self.seq_length):
                 if time_step > 0:
                     tf.get_variable_scope().reuse_variables()
-                input_ = inputs[:,time_step,:]
+                input_ = inputs[:, time_step, :]
                 concat_val = [input_]
                 concat_val.append(generated_point)
-                input_ = tf.concat(values = concat_val,axis = 1)
+                input_ = tf.concat(values=concat_val, axis=1)
                 with tf.variable_scope('fully_connect') as scope:
                     lstm_input = layers.fully_connected(inputs=input_,
                                                         num_outputs=self.hidden_size,
                                                         activation_fn=self.__leaky_relu,
-                                                        weights_initializer=layers.xavier_initializer(uniform=False),
+                                                        weights_initializer=layers.xavier_initializer(
+                                                            uniform=False),
                                                         biases_initializer=tf.zeros_initializer(),
                                                         scope=scope)
 
-
                 with tf.variable_scope('stacked_lstm') as scope:
 
-                    cell_out, state = cell(inputs=lstm_input,state=state,scope=scope)
-
+                    cell_out, state = cell(
+                        inputs=lstm_input, state=state, scope=scope)
 
                 with tf.variable_scope('position_fc') as scope:
                     position_fc = layers.fully_connected(inputs=cell_out,
                                                          num_outputs=10,
                                                          activation_fn=self.__leaky_relu,
-                                                         weights_initializer=layers.xavier_initializer(uniform=False),
+                                                         weights_initializer=layers.xavier_initializer(
+                                                             uniform=False),
                                                          biases_initializer=tf.zeros_initializer(),
                                                          scope=scope)
                 generated_point = position_fc
                 output_.append(generated_point)
-            result = tf.stack(output_,axis=1)
+            result = tf.stack(output_, axis=1)
             return result
 
     def __G_loss_fn(self, fake_samples, conds, lambda_):
@@ -208,12 +211,12 @@ class G_MODEL(object):
         self.summary_writer.add_summary(
             summary, global_step=global_steps)
        # if self.__steps % 200 == 0:
-            #summary, summary_trainable = sess.run(
-                #[self.__summary_histogram_op], feed_dict=feed_dict)
-            #self.summary_writer.add_summary(
-                #summary, global_step=global_steps)
-            #self.summary_writer.add_summary(
-                #summary_trainable, global_step=global_steps)
+        # summary, summary_trainable = sess.run(
+        #[self.__summary_histogram_op], feed_dict=feed_dict)
+        # self.summary_writer.add_summary(
+        # summary, global_step=global_steps)
+        # self.summary_writer.add_summary(
+        # summary_trainable, global_step=global_steps)
 
         self.__steps += 1
         return loss, global_steps

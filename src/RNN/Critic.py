@@ -20,7 +20,7 @@ class C_MODEL(object):
     """ 
     """
 
-    def __init__(self, config, graph):
+    def __init__(self, config, graph, if_training=True):
         """ TO build up the graph
         Inputs
         ------
@@ -41,10 +41,11 @@ class C_MODEL(object):
         self.learning_rate = config.learning_rate
         self.seq_length = config.seq_length
         self.latent_dims = config.latent_dims
-        #RNN parameters
+        # RNN parameters
         self.num_features = config.num_features
         self.num_layers = config.num_layers
         self.hidden_size = config.hidden_size
+        self.if_training = if_training
 
         self.penalty_lambda = config.penalty_lambda
         self.if_handcraft_features = config.if_handcraft_features
@@ -67,53 +68,61 @@ class C_MODEL(object):
         self.__build_model()
 
         # summary
-        self.__summary_op = tf.summary.merge(tf.get_collection('C'))
-        #self.__summary_histogram_op = tf.summary.merge(
-            #tf.get_collection('C_histogram'))
-        self.__summary_valid_op = tf.summary.merge(
-            tf.get_collection('C_valid'))
-        self.summary_writer = tf.summary.FileWriter(
-            self.log_dir + 'C')
-        self.valid_summary_writer = tf.summary.FileWriter(
-            self.log_dir + 'C_valid')
+        if self.if_training:
+            self.__summary_op = tf.summary.merge(tf.get_collection('C'))
+            # self.__summary_histogram_op = tf.summary.merge(
+            # tf.get_collection('C_histogram'))
+            self.__summary_valid_op = tf.summary.merge(
+                tf.get_collection('C_valid'))
+            self.summary_writer = tf.summary.FileWriter(
+                self.log_dir + 'C')
+            self.valid_summary_writer = tf.summary.FileWriter(
+                self.log_dir + 'C_valid')
+        else:
+            self.baseline_summary_writer = tf.summary.FileWriter(
+                self.log_dir + 'Baseline_C')
 
     def __build_model(self):
         with tf.name_scope('Critic'):
             # inference
             real_scores = self.inference(
-                self.__real_data, self.__matched_cond, seq_len= None, if_log_scalar_summary=True, log_scope_name='real_scores')
+                self.__real_data, self.__matched_cond, seq_len=None, if_log_scalar_summary=True, log_scope_name='real_scores')
             fake_scores = self.inference(
                 self.__G_samples, self.__matched_cond, reuse=True, if_log_scalar_summary=True, log_scope_name='fake_scores')
-            #mismatched_scores = self.inference(
-                #self.__real_data, self.__mismatched_cond, reuse=True)
-            #if self.if_use_mismatched:
-                #neg_scores = (fake_scores + mismatched_scores) / 2.0
-            #else:
+            # mismatched_scores = self.inference(
+            # self.__real_data, self.__mismatched_cond, reuse=True)
+            # if self.if_use_mismatched:
+            #neg_scores = (fake_scores + mismatched_scores) / 2.0
+            # else:
             neg_scores = fake_scores
+            if self.if_training:
+                # loss function
+                self.__loss = self.__loss_fn(
+                    self.__real_data, self.__G_samples, neg_scores, real_scores, self.penalty_lambda)
 
-            # loss function
-            self.__loss = self.__loss_fn(
-                self.__real_data, self.__G_samples, neg_scores, real_scores, self.penalty_lambda)
+                theta = libs.get_var_list('C')
 
-            theta = libs.get_var_list('C')
-
-            with tf.name_scope('optimizer') as scope:
-                optimizer = tf.train.AdamOptimizer(
-                    learning_rate=self.learning_rate, beta1=0.5)
-                grads = tf.gradients(self.__loss, theta)
-                grads = list(zip(grads, theta))
-                self.__train_op = optimizer.apply_gradients(
-                    grads_and_vars=grads, global_step=self.__global_steps)
-            #for grad, var in grads:
-                #tf.summary.histogram(
-                    #var.name + '_gradient', grad, collections=['C_histogram'])
+                with tf.name_scope('optimizer') as scope:
+                    optimizer = tf.train.AdamOptimizer(
+                        learning_rate=self.learning_rate, beta1=0.5)
+                    grads = tf.gradients(self.__loss, theta)
+                    grads = list(zip(grads, theta))
+                    self.__train_op = optimizer.apply_gradients(
+                        grads_and_vars=grads, global_step=self.__global_steps)
+                # for grad, var in grads:
+                    # tf.summary.histogram(
+                    # var.name + '_gradient', grad, collections=['C_histogram'])
+            else:
+                with tf.name_scope('C_loss') as scope:
+                    self.EM_dist = f_real - f_fake
+                    self.summary_em = tf.summary.scalar(
+                        'Earth Moving Distance', self.EM_dist)
 
     def __lstm_cell(self):
-        return rnn.LSTMCell(self.hidden_size,initializer=None,
-                            forget_bias=1.0,state_is_tuple=True)
+        return rnn.LSTMCell(self.hidden_size, initializer=None,
+                            forget_bias=1.0, state_is_tuple=True)
 
-
-    def inference(self, inputs, conds, seq_len = None, reuse=False, if_log_scalar_summary=False, log_scope_name=''):
+    def inference(self, inputs, conds, seq_len=None, reuse=False, if_log_scalar_summary=False, log_scope_name=''):
         """
         Inputs
         ------
@@ -151,7 +160,7 @@ class C_MODEL(object):
                     fconnect = layers.fully_connected(
                         inputs=out_blstm,
                         num_outputs=1,
-                        activation_fn= libs.leaky_relu,
+                        activation_fn=libs.leaky_relu,
                         weights_initializer=layers.xavier_initializer(),
                         biases_initializer=tf.zeros_initializer(),
                         scope=scope)
@@ -159,8 +168,8 @@ class C_MODEL(object):
             # stack, axis=1 -> [batch, time, feature]
             decisions = tf.stack(output_list, axis=1)
             final_ = tf.reduce_mean(decisions, axis=1)
-            final_ = tf.reshape(final_,shape=[self.batch_size])
-		
+            final_ = tf.reshape(final_, shape=[self.batch_size])
+
             with tf.name_scope('heuristic_penalty') as scope:
                 # 0. prepare data
                 ball_pos = tf.reshape(conds[:, :, :2], shape=[
@@ -202,9 +211,9 @@ class C_MODEL(object):
             if if_log_scalar_summary:
                 with tf.name_scope(log_scope_name):
                     tf.summary.scalar('heuristic_penalty',
-                                    heuristic_penalty, collections=['C'])
+                                      heuristic_penalty, collections=['C'])
                     tf.summary.scalar('trainable_lambda',
-                                  trainable_lambda, collections=['C'])
+                                      trainable_lambda, collections=['C'])
 
             return final_ - trainable_lambda * heuristic_penalty
 
@@ -221,7 +230,7 @@ class C_MODEL(object):
                 self.inference(X_inter, self.__matched_cond, reuse=True), [X_inter])[0]
             print(grad)
             sum_ = tf.reduce_sum(tf.square(grad), axis=[1, 2])
-            #print(sum_)
+            # print(sum_)
             grad_norm = tf.sqrt(sum_)
             grad_pen = penalty_lambda * tf.reduce_mean(
                 tf.square(grad_norm - 1.0))
@@ -252,11 +261,11 @@ class C_MODEL(object):
         # log
         self.summary_writer.add_summary(
             summary, global_step=global_steps)
-        #if self.__steps % 1000 == 0:
-            #summary_histogram = sess.run(
-                #self.__summary_histogram_op, feed_dict=feed_dict)
-            #self.summary_writer.add_summary(
-                #summary_histogram, global_step=global_steps)
+        # if self.__steps % 1000 == 0:
+        # summary_histogram = sess.run(
+        # self.__summary_histogram_op, feed_dict=feed_dict)
+        # self.summary_writer.add_summary(
+        # summary_histogram, global_step=global_steps)
 
         self.__steps += 1
         return loss, global_steps
@@ -273,3 +282,14 @@ class C_MODEL(object):
         self.valid_summary_writer.add_summary(
             summary, global_step=global_steps)
         return loss
+
+    def eval_EM_distance(self, sess, G_samples, real_data, conditions, global_steps):
+        """ 
+        """
+        feed_dict = {self.__G_samples: G_samples,
+                     self.__matched_cond: conditions,
+                     self.__real_data: real_data}
+        _, summary = sess.run(
+            [self.EM_dist, self.summary_em], feed_dict=feed_dict)
+        self.baseline_summary_writer.add_summary(
+            summary, global_step=global_steps)

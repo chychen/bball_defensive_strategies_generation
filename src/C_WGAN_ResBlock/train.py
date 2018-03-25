@@ -133,10 +133,12 @@ def z_samples():
 def training(train_data, valid_data, data_factory, config, default_graph, baseline_graph=None):
     """ training
     """
-    default_sess = tf.Session(graph=default_graph)
+    tfconfig = tf.ConfigProto()
+    tfconfig.gpu_options.allow_growth = True
+    default_sess = tf.Session(config=tfconfig, graph=default_graph)
 
     if baseline_graph is not None:
-        baseline_sess = tf.Session(graph=baseline_graph)
+        baseline_sess = tf.Session(config=tfconfig, graph=baseline_graph)
         with baseline_graph.as_default() as graph:
             # with tf.variable_scope('baseline'):
             #     var_dict = {}
@@ -166,8 +168,6 @@ def training(train_data, valid_data, data_factory, config, default_graph, baseli
         init = tf.global_variables_initializer()
         # saver for later restore
         saver = tf.train.Saver(max_to_keep=0)  # 0 -> keep them all
-        tfconfig = tf.ConfigProto()
-        tfconfig.gpu_options.allow_growth = True
 
         default_sess.run(init)
         # restore model if exist
@@ -281,6 +281,7 @@ def main(_):
     # config setting
     config = TrainingConfig()
 
+    baseline_graph = None
     if FLAGS.baseline_checkpoint is not None:
         baseline_graph = tf.Graph()
     default_graph = tf.Graph()
