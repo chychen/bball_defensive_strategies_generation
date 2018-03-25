@@ -123,12 +123,17 @@ class TrainingConfig(object):
         self.if_feed_extra_info = FLAGS.if_feed_extra_info
         self.residual_alpha = FLAGS.residual_alpha
         self.leaky_relu_alpha = FLAGS.leaky_relu_alpha
+
+        self.openshot_penalty_lambda = 0.0
+        self.n_filters = 256
+
         self.heuristic_penalty_lambda = FLAGS.heuristic_penalty_lambda
         self.if_use_mismatched = FLAGS.if_use_mismatched
         self.if_trainable_lambda = FLAGS.if_trainable_lambda
         self.num_layers = FLAGS.num_layers
         self.hidden_size = FLAGS.hidden_size
         self.num_features = FLAGS.num_features
+        
         with open(os.path.join(FLAGS.folder_path, 'hyper_parameters.json'), 'w') as outfile:
             json.dump(self.__dict__, outfile, default=repr)
         print(self.__dict__)
@@ -161,8 +166,8 @@ def training(train_data, valid_data, data_factory, config, default_graph, baseli
         print('num_batches', num_batches)
         print('num_valid_batches', num_valid_batches)
         # model
-        C = C_MODEL(config, default_graph)
-        G = G_MODEL(config, C.inference, default_graph)
+        C = C_MODEL(config, graph)
+        G = G_MODEL(config, C.inference, graph)
         init = tf.global_variables_initializer()
         # saver for later restore
         saver = tf.train.Saver(max_to_keep=0)  # 0 -> keep them all
