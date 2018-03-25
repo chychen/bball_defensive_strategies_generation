@@ -40,7 +40,7 @@ tf.app.flags.DEFINE_integer('latent_dims', 10,
 # training parameters
 tf.app.flags.DEFINE_string('gpus', '0',
                            "define visible gpus")
-tf.app.flags.DEFINE_integer('total_epoches', 2000,
+tf.app.flags.DEFINE_integer('total_epoches', 5000,
                             "num of ephoches")
 tf.app.flags.DEFINE_integer('num_train_D', 5,
                             "num of times of training D before train G")
@@ -133,7 +133,7 @@ class TrainingConfig(object):
         self.num_layers = FLAGS.num_layers
         self.hidden_size = FLAGS.hidden_size
         self.num_features = FLAGS.num_features
-        
+
         with open(os.path.join(FLAGS.folder_path, 'hyper_parameters.json'), 'w') as outfile:
             json.dump(self.__dict__, outfile, default=repr)
         print(self.__dict__)
@@ -177,7 +177,7 @@ def training(train_data, valid_data, data_factory, config, default_graph, baseli
         if FLAGS.restore_path is not None:
             saver.restore(default_sess, FLAGS.restore_path)
             print('successfully restore model from checkpoint: %s' %
-                (FLAGS.restore_path))
+                  (FLAGS.restore_path))
         D_loss_mean = 0.0
         D_valid_loss_mean = 0.0
         G_loss_mean = 0.0
@@ -202,9 +202,9 @@ def training(train_data, valid_data, data_factory, config, default_graph, baseli
                             train_data['B'].shape[0] - FLAGS.batch_size)
                     # data
                     real_samples = train_data['B'][data_idx:data_idx +
-                                                FLAGS.batch_size]
+                                                   FLAGS.batch_size]
                     real_conds = train_data['A'][data_idx:data_idx +
-                                                FLAGS.batch_size]
+                                                 FLAGS.batch_size]
                     # samples
                     fake_samples = G.generate(
                         default_sess, z_samples(), real_conds)
@@ -219,13 +219,18 @@ def training(train_data, valid_data, data_factory, config, default_graph, baseli
                         FLAGS.batch_size % (
                             valid_data['B'].shape[0] - FLAGS.batch_size)
                     valid_real_samples = valid_data['B'][data_idx:data_idx +
-                                                        FLAGS.batch_size]
+                                                         FLAGS.batch_size]
                     valid_real_conds = valid_data['A'][data_idx:data_idx +
-                                                    FLAGS.batch_size]
+                                                       FLAGS.batch_size]
                     fake_samples = G.generate(
                         default_sess, z_samples(), valid_real_conds)
                     D_valid_loss_mean = C.log_valid_loss(
                         default_sess, fake_samples, valid_real_samples, valid_real_conds)
+
+                    if baseline_graph is not None:
+                        # baseline critic eval
+                        baseline_C.eval_EM_distance(
+                            baseline_sess, fake_samples, valid_real_samples, valid_real_conds, global_steps)
 
                 # train G
                 G_loss_mean, global_steps = G.step(
@@ -237,12 +242,12 @@ def training(train_data, valid_data, data_factory, config, default_graph, baseli
                     end_time = time.time()
                     log_counter = 0
                     print("%d, epoches, %d steps, mean C_loss: %f, mean C_valid_loss: %f, mean G_loss: %f, time cost: %f(sec)" %
-                        (epoch_id,
-                        global_steps,
-                        D_loss_mean,
-                        D_valid_loss_mean,
-                        G_loss_mean,
-                        (end_time - start_time)))
+                          (epoch_id,
+                           global_steps,
+                           D_loss_mean,
+                           D_valid_loss_mean,
+                           G_loss_mean,
+                           (end_time - start_time)))
                     start_time = time.time()  # save checkpoints
             # save model
             if (epoch_id % FLAGS.save_model_freq) == 0 or epoch_id == FLAGS.total_epoches - 1:
@@ -254,19 +259,19 @@ def training(train_data, valid_data, data_factory, config, default_graph, baseli
             if (epoch_id % FLAGS.save_result_freq) == 0 or epoch_id == FLAGS.total_epoches - 1:
                 # fake
                 samples = G.generate(default_sess, z_samples(), real_conds)
-                print(samples)
+                # print(samples)
                 real_samples = train_data['B'][data_idx:data_idx +
-                                            FLAGS.batch_size]
+                                               FLAGS.batch_size]
                 concat_ = np.concatenate([real_conds, samples], axis=-1)
                 # print(concat_)
                 fake_result = data_factory.recover_data(concat_)
                 game_visualizer.plot_data(
-                    fake_result[0:], FLAGS.seq_length, file_path=SAMPLE_PATH + str(global_steps) + '_fake.mp4', if_save=True)
+                    fake_result[0], FLAGS.seq_length, file_path=SAMPLE_PATH + str(global_steps) + '_fake.mp4', if_save=True)
                 # real
                 concat_ = np.concatenate([real_conds, real_samples], axis=-1)
                 real_result = data_factory.recover_data(concat_)
                 game_visualizer.plot_data(
-                    real_result[0:], FLAGS.seq_length, file_path=SAMPLE_PATH + str(global_steps) + '_real.mp4', if_save=True)
+                    real_result[0], FLAGS.seq_length, file_path=SAMPLE_PATH + str(global_steps) + '_real.mp4', if_save=True)
 
 
 def main(_):

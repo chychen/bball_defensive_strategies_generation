@@ -154,7 +154,7 @@ def training(train_data, valid_data, data_factory, config, default_graph, baseli
             saver = tf.train.Saver()
             saver.restore(baseline_sess, FLAGS.baseline_checkpoint)
             print('successfully restore baseline critic from checkpoint: %s' %
-                    (FLAGS.baseline_checkpoint))
+                  (FLAGS.baseline_checkpoint))
 
     with default_graph.as_default() as graph:
         # number of batches

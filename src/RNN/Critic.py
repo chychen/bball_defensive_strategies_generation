@@ -113,6 +113,8 @@ class C_MODEL(object):
                     # tf.summary.histogram(
                     # var.name + '_gradient', grad, collections=['C_histogram'])
             else:
+                f_fake = tf.reduce_mean(fake_scores)
+                f_real = tf.reduce_mean(real_scores)
                 with tf.name_scope('C_loss') as scope:
                     self.EM_dist = f_real - f_fake
                     self.summary_em = tf.summary.scalar(
@@ -244,8 +246,8 @@ class C_MODEL(object):
                               collections=['C', 'C_valid'])
             tf.summary.scalar('F_real', f_real, collections=['C'])
             tf.summary.scalar('F_fake', f_fake, collections=['C'])
-            tf.summary.scalar('F_real-F_fake', f_real -
-                              f_fake, collections=['C'])
+            tf.summary.scalar('Earth Moving Distance', f_real -
+                              f_fake, collections=['C', 'C_valid'])
             tf.summary.scalar('grad_pen', grad_pen, collections=['C'])
 
         return loss

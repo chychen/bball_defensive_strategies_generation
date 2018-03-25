@@ -98,9 +98,6 @@ class C_MODEL(object):
         else:
             neg_scores = self.fake_scores
 
-        f_fake = tf.reduce_mean(self.fake_scores)
-        f_real = tf.reduce_mean(self.real_scores)
-
         if self.if_training:
             # loss function
             self.__loss = self.__loss_fn(
@@ -121,6 +118,8 @@ class C_MODEL(object):
                 tf.summary.histogram(
                     var.name + '_gradient', grad, collections=['C_histogram'])
         else:
+            f_fake = tf.reduce_mean(self.fake_scores)
+            f_real = tf.reduce_mean(self.real_scores)
             with tf.name_scope('C_loss') as scope:
                 self.EM_dist = f_real - f_fake
                 self.summary_em = tf.summary.scalar(
