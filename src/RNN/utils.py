@@ -1,3 +1,4 @@
+
 """
 """
 from __future__ import absolute_import
@@ -28,7 +29,7 @@ class DataFactory(object):
 
         note
         ----
-        feature :
+        feature=4 :
             x, y, z, and player position
         """
         if real_data is not None:
@@ -38,22 +39,10 @@ class DataFactory(object):
             # position normalization
             self.__norm_dict = self.__normalize_pos()
             # make training data ready
-            self.train_data, self.valid_data = self.__get_ready()
+            self.__train_data, self.__valid_data = self.__get_ready()
 
     def fetch_data(self):
-        return self.train_data, self.valid_data
-
-    def fetch_ori_data(self):
-        return np.concatenate(
-            [
-                # ball
-                self.__real_data[:, :, 0, :3].reshape(
-                    [self.__real_data.shape[0], self.__real_data.shape[1], 1 * 3]),
-                # team A players
-                self.__real_data[:, :, 1:, :2].reshape(
-                    [self.__real_data.shape[0], self.__real_data.shape[1], 10 * 2])
-            ], axis=-1
-        )
+        return self.__train_data, self.__valid_data
 
     def extract_features(self, t_data):
         """ extract 202 features from raw data, including
@@ -129,15 +118,17 @@ class DataFactory(object):
         return norm_data
 
     def shuffle(self):
-        shuffled_indexes = np.random.permutation(self.train_data['A'].shape[0])
-        self.train_data['A'] = self.train_data['A'][shuffled_indexes]
-        self.train_data['B'] = self.train_data['B'][shuffled_indexes]
-        shuffled_indexes = np.random.permutation(self.valid_data['A'].shape[0])
-        self.valid_data['A'] = self.valid_data['A'][shuffled_indexes]
-        self.valid_data['B'] = self.valid_data['B'][shuffled_indexes]
-        return self.train_data, self.valid_data
+        shuffled_indexes = np.random.permutation(self.__train_data['A'].shape[0])
+        self.__train_data['A'] = self.__train_data['A'][shuffled_indexes]
+        self.__train_data['B'] = self.__train_data['B'][shuffled_indexes]
+        shuffled_indexes = np.random.permutation(self.__valid_data['A'].shape[0])
+        self.__valid_data['A'] = self.__valid_data['A'][shuffled_indexes]
+        self.__valid_data['B'] = self.__valid_data['B'][shuffled_indexes]
+        return self.__train_data, self.__valid_data
 
     def __get_ready(self):
+        """ split data into training data and validation data by 9:1
+        """
         train = {}
         valid = {}
         # A
@@ -153,16 +144,12 @@ class DataFactory(object):
         )
         train['A'], valid['A'] = np.split(
             team_A, [self.__real_data.shape[0] // 10 * 9])
-        print(train['A'].shape)
-        print(valid['A'].shape)
         # B
         team_B = self.__real_data[:, :, 6:11, :2].reshape(
             [self.__real_data.shape[0], self.__real_data.shape[1], 5 * 2]
         )
         train['B'], valid['B'] = np.split(
             team_B, [self.__real_data.shape[0] // 10 * 9])
-        print(train['B'].shape)
-        print(valid['B'].shape)
         return train, valid
 
     def __normalize_pos(self):
@@ -197,9 +184,24 @@ class DataFactory(object):
                 norm_dict[axis_]['stddev'] = stddev_
         return norm_dict
 
+    def normalize(self, input_):
+        """ normalize player x,y,z on input
+        input_ : shape=[128, 100, 23]
+        """
+        # x
+        input_[:, :, [0, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21]] = (
+            input_[:, :, [0, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21]] - self.__norm_dict['x']['mean']) / self.__norm_dict['x']['stddev']
+        # y
+        input_[:, :, [1, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22]] = (
+            input_[:, :, [1, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22]] - self.__norm_dict['y']['mean']) / self.__norm_dict['y']['stddev']
+        # z
+        input_[:, :, 2:3] = (input_[:, :, 2:3] - self.__norm_dict['z']
+                             ['mean']) / self.__norm_dict['z']['stddev']
+        return input_
 
 def testing_real():
     pass
+
 
 if __name__ == '__main__':
     testing_real()

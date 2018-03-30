@@ -136,6 +136,8 @@ def test():
 
     target_data = np.load('v1/collect/mode_9/results_A_fake_B.npy')
     target_data_len = np.load('../../data/FixedFPS5Length.npy')[:10000:100]
+    target_data = np.load('v1/collect/mode_9/results_A_fake_B.npy')
+    target_data_len = np.load('../../data/FixedFPS5Length.npy')[:10000:100]
     print(target_data.shape)
     print(target_data_len.shape)
     for i in range(target_data.shape[1]):

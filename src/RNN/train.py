@@ -48,7 +48,7 @@ tf.app.flags.DEFINE_integer('num_pretrain_D', 10,
                             "num of ephoch to train D before train G")
 tf.app.flags.DEFINE_integer('freq_train_D', 10,
                             "freqence of num ephoch to train D more")
-tf.app.flags.DEFINE_integer('batch_size', 128,
+tf.app.flags.DEFINE_integer('batch_size', 100,
                             "batch size")
 tf.app.flags.DEFINE_float('learning_rate', 1e-4,
                           "learning rate")
