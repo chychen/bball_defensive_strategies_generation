@@ -620,7 +620,6 @@ def mode_8(sess, graph, save_path):
     print('!!Completely Saved!!')
 
 
-
 class TrainingConfig(object):
     """
     Training config
@@ -661,8 +660,10 @@ class TrainingConfig(object):
         self.hidden_size = 300
         self.num_features = 23
 
+
 def mode_9(sess, graph, save_path, is_valid=FLAGS.is_valid):
     pass
+
 
 def rnn():
     """ to collect results vary in length
@@ -676,8 +677,7 @@ def rnn():
         critic scores for each input data
     """
 
-    # placeho
-    save_path = COLLECT_PATH + '/rnn'
+    save_path = os.path.join(COLLECT_PATH, 'rnn')
     if not os.path.exists(save_path):
         os.makedirs(save_path)
 
@@ -721,7 +721,7 @@ def rnn():
         # restore model if exist
         saver.restore(default_sess, FLAGS.restore_path)
         print('successfully restore model from checkpoint: %s' %
-            (FLAGS.restore_path))
+              (FLAGS.restore_path))
         for idx in range(team_AB.shape[0]):
             # given 100(FLAGS.n_latents) latents generate 100 results on same condition at once
             real_samples = team_B[idx:idx + 1, :]
@@ -733,8 +733,6 @@ def rnn():
             # generate result
             latents = z_samples(FLAGS.n_latents)
             result = G.generate(default_sess, latents, real_conds)
-            print(real_conds.shape)
-            print(result.shape)
             # calculate em distance
             recoverd_A_fake_B = data_factory.recover_data(
                 np.concatenate([real_conds, result], axis=-1))
