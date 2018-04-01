@@ -752,9 +752,9 @@ def rnn():
     # saved as numpy
     print(np.array(results_A_fake_B).shape)
     print(np.array(results_A_real_B).shape)
-    np.save(save_path + 'results_A_fake_B.npy',
+    np.save(os.path.join(save_path, 'results_A_fake_B.npy'),
             np.array(results_A_fake_B).astype(np.float32).reshape([FLAGS.n_latents, team_AB.shape[0], team_AB.shape[1], 23]))
-    np.save(save_path + 'results_A_real_B.npy',
+    np.save(os.path.join(save_path, 'results_A_real_B.npy'),
             np.array(results_A_real_B).astype(np.float32).reshape([team_AB.shape[0], team_AB.shape[1], 23]))
     print('!!Completely Saved!!')
 
