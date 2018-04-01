@@ -42,10 +42,10 @@ tf.app.flags.DEFINE_string('gpus', '1',
                            "define visible gpus")
 tf.app.flags.DEFINE_integer('batch_size', 128,
                             "batch size")
-tf.app.flags.DEFINE_integer('latent_dims', 100,
+tf.app.flags.DEFINE_integer('latent_dims', 10,
                             "latent_dims")
 # collect mode
-tf.app.flags.DEFINE_integer('n_latents', 128,
+tf.app.flags.DEFINE_integer('n_latents', 100,
                             "n_latents")
 tf.app.flags.DEFINE_integer('n_conditions', 128 * 9,  # because there are 9 batch_size data amount in validation set
                             "n_conditions")
@@ -620,7 +620,51 @@ def mode_8(sess, graph, save_path):
     print('!!Completely Saved!!')
 
 
+
+class TrainingConfig(object):
+    """
+    Training config
+    """
+
+    def __init__(self, length):
+        self.folder_path = ''
+        self.total_epoches = 10
+        self.batch_size = 100
+        self.log_dir = ''
+        self.checkpoints_dir = ''
+        self.sample_dir = ''
+        self.data_path = ''
+        self.learning_rate = 1e-4
+        self.save_model_freq = 10
+        self.save_result_freq = 10
+        self.log_freq = 10
+        self.seq_length = length
+        self.latent_dims = 10
+        self.penalty_lambda = 10.0
+        self.latent_penalty_lambda = 10.0
+        self.num_train_D = 10
+        self.num_pretrain_D = 10
+        self.freq_train_D = 10
+        self.n_resblock = 4
+        self.if_handcraft_features = False
+        self.if_feed_extra_info = False
+        self.residual_alpha = 1.0
+        self.leaky_relu_alpha = 0.2
+
+        self.openshot_penalty_lambda = 0.0
+        self.n_filters = 256
+
+        self.heuristic_penalty_lambda = 10.0
+        self.if_use_mismatched = False
+        self.if_trainable_lambda = False
+        self.num_layers = 2
+        self.hidden_size = 300
+        self.num_features = 23
+
 def mode_9(sess, graph, save_path, is_valid=FLAGS.is_valid):
+    pass
+
+def rnn():
     """ to collect results vary in length
     Saved Result
     ------------
@@ -631,15 +675,9 @@ def mode_9(sess, graph, save_path, is_valid=FLAGS.is_valid):
     results_critic_scores : float, numpy ndarray, shape=[n_latents=100, n_conditions=100]
         critic scores for each input data
     """
-    # placeholder tensor
-    latent_input_t = graph.get_tensor_by_name('latent_input:0')
-    team_a_t = graph.get_tensor_by_name('team_a:0')
-    G_samples_t = graph.get_tensor_by_name('G_samples:0')
-    matched_cond_t = graph.get_tensor_by_name('matched_cond:0')
-    # result tensor
-    result_t = graph.get_tensor_by_name(
-        'Generator/G/stack:0')
 
+    # placeho
+    save_path = COLLECT_PATH + '/rnn'
     if not os.path.exists(save_path):
         os.makedirs(save_path)
 
@@ -648,9 +686,8 @@ def mode_9(sess, graph, save_path, is_valid=FLAGS.is_valid):
     # DataFactory
     data_factory = DataFactory(real_data)
     # target data
-    target_data = np.load('../../data/FixedFPS5-Train.npy')[-100:]
-    target_length = np.load('../../data/FixedFPS5Length.npy')[:100]
-    target_length[:] = 50
+    target_data = np.load('../../data/FixedFPS5.npy')[-100:]
+    target_length = np.load('../../data/FixedFPS5Length.npy')[-100:]
     print('target_data.shape', target_data.shape)
     team_AB = np.concatenate(
         [
@@ -671,37 +708,42 @@ def mode_9(sess, graph, save_path, is_valid=FLAGS.is_valid):
     # result collector
     results_A_fake_B = []
     results_A_real_B = []
-    results_critic_scores = []
-
-    for idx in range(team_AB.shape[0]):
-        # given 100(FLAGS.n_latents) latents generate 100 results on same condition at once
-        real_samples = team_B[idx:idx + 1, :target_length[idx]]
-        real_samples = np.concatenate(
-            [real_samples for _ in range(FLAGS.n_latents)], axis=0)
-        real_conds = team_A[idx:idx + 1, :target_length[idx]]
-        real_conds = np.concatenate(
-            [real_conds for _ in range(FLAGS.n_latents)], axis=0)
-        # generate result
-        latents = z_samples(FLAGS.n_latents)
-        feed_dict = {
-            latent_input_t: latents,
-            team_a_t: real_conds
-        }
-        result = sess.run(
-            result_t, feed_dict=feed_dict)
-        # calculate em distance
-        feed_dict = {
-            G_samples_t: result,
-            matched_cond_t: real_conds
-        }
-        recoverd_A_fake_B = data_factory.recover_data(
-            np.concatenate([real_conds, result], axis=-1))
-        # padding to length=200
-        dummy = np.zeros(
-            shape=[FLAGS.n_latents, team_AB.shape[1] - target_length[idx], team_AB.shape[2]])
-        temp_A_fake_B_concat = np.concatenate(
-            [recoverd_A_fake_B, dummy], axis=1)
-        results_A_fake_B.append(temp_A_fake_B_concat)
+    config = TrainingConfig(235)
+    with tf.get_default_graph().as_default() as graph:
+        # model
+        C = C_MODEL(config, graph)
+        G = G_MODEL(config, C.inference, graph)
+        tfconfig = tf.ConfigProto()
+        tfconfig.gpu_options.allow_growth = True
+        default_sess = tf.Session(config=tfconfig, graph=graph)
+        # saver for later restore
+        saver = tf.train.Saver(max_to_keep=0)  # 0 -> keep them all
+        # restore model if exist
+        saver.restore(default_sess, FLAGS.restore_path)
+        print('successfully restore model from checkpoint: %s' %
+            (FLAGS.restore_path))
+        for idx in range(team_AB.shape[0]):
+            # given 100(FLAGS.n_latents) latents generate 100 results on same condition at once
+            real_samples = team_B[idx:idx + 1, :]
+            real_samples = np.concatenate(
+                [real_samples for _ in range(FLAGS.n_latents)], axis=0)
+            real_conds = team_A[idx:idx + 1, :]
+            real_conds = np.concatenate(
+                [real_conds for _ in range(FLAGS.n_latents)], axis=0)
+            # generate result
+            latents = z_samples(FLAGS.n_latents)
+            result = G.generate(default_sess, latents, real_conds)
+            print(real_conds.shape)
+            print(result.shape)
+            # calculate em distance
+            recoverd_A_fake_B = data_factory.recover_data(
+                np.concatenate([real_conds, result], axis=-1))
+            # padding to length=200
+            dummy = np.zeros(
+                shape=[FLAGS.n_latents, team_AB.shape[1] - target_length[idx], team_AB.shape[2]])
+            temp_A_fake_B_concat = np.concatenate(
+                [recoverd_A_fake_B[:, :target_length[idx]], dummy], axis=1)
+            results_A_fake_B.append(temp_A_fake_B_concat)
     print(np.array(results_A_fake_B).shape)
     # concat along with conditions dimension (axis=1)
     results_A_fake_B = np.stack(results_A_fake_B, axis=1)
@@ -720,42 +762,43 @@ def mode_9(sess, graph, save_path, is_valid=FLAGS.is_valid):
 
 
 def main(_):
-    with tf.get_default_graph().as_default() as graph:
-        # sesstion config
-        config = tf.ConfigProto()
-        config.gpu_options.allow_growth = True
-        saver = tf.train.import_meta_graph(FLAGS.restore_path + '.meta')
-        with tf.Session(config=config) as sess:
-            # restored
-            saver.restore(sess, FLAGS.restore_path)
-            # collect
-            if FLAGS.mode == 1:
-                mode_1(sess, graph, save_path=os.path.join(
-                    COLLECT_PATH, 'mode_1/'))
-            elif FLAGS.mode == 2:
-                mode_2(sess, graph, save_path=os.path.join(
-                    COLLECT_PATH, 'mode_2/'))
-            elif FLAGS.mode == 3:
-                weight_vis(graph, save_path=os.path.join(
-                    COLLECT_PATH, 'mode_3/'))
-            elif FLAGS.mode == 4:
-                mode_4(sess, graph, save_path=os.path.join(
-                    COLLECT_PATH, 'mode_4/'))
-            elif FLAGS.mode == 5:
-                mode_5(sess, graph, save_path=os.path.join(
-                    COLLECT_PATH, 'mode_5/'))
-            elif FLAGS.mode == 6:
-                mode_6(sess, graph, save_path=os.path.join(
-                    COLLECT_PATH, 'mode_6/'))
-            elif FLAGS.mode == 7:
-                mode_7(sess, graph, save_path=os.path.join(
-                    COLLECT_PATH, 'mode_7/'))
-            elif FLAGS.mode == 8:
-                mode_8(sess, graph, save_path=os.path.join(
-                    COLLECT_PATH, 'mode_8/'))
-            elif FLAGS.mode == 9:
-                mode_9(sess, graph, save_path=os.path.join(
-                    COLLECT_PATH, 'mode_9/'))
+    rnn()
+    # with tf.get_default_graph().as_default() as graph:
+    #     # sesstion config
+    #     config = tf.ConfigProto()
+    #     config.gpu_options.allow_growth = True
+    #     saver = tf.train.import_meta_graph(FLAGS.restore_path + '.meta')
+    #     with tf.Session(config=config) as sess:
+    #         # restored
+    #         saver.restore(sess, FLAGS.restore_path)
+    #         # collect
+    #         if FLAGS.mode == 1:
+    #             mode_1(sess, graph, save_path=os.path.join(
+    #                 COLLECT_PATH, 'mode_1/'))
+    #         elif FLAGS.mode == 2:
+    #             mode_2(sess, graph, save_path=os.path.join(
+    #                 COLLECT_PATH, 'mode_2/'))
+    #         elif FLAGS.mode == 3:
+    #             weight_vis(graph, save_path=os.path.join(
+    #                 COLLECT_PATH, 'mode_3/'))
+    #         elif FLAGS.mode == 4:
+    #             mode_4(sess, graph, save_path=os.path.join(
+    #                 COLLECT_PATH, 'mode_4/'))
+    #         elif FLAGS.mode == 5:
+    #             mode_5(sess, graph, save_path=os.path.join(
+    #                 COLLECT_PATH, 'mode_5/'))
+    #         elif FLAGS.mode == 6:
+    #             mode_6(sess, graph, save_path=os.path.join(
+    #                 COLLECT_PATH, 'mode_6/'))
+    #         elif FLAGS.mode == 7:
+    #             mode_7(sess, graph, save_path=os.path.join(
+    #                 COLLECT_PATH, 'mode_7/'))
+    #         elif FLAGS.mode == 8:
+    #             mode_8(sess, graph, save_path=os.path.join(
+    #                 COLLECT_PATH, 'mode_8/'))
+    #         elif FLAGS.mode == 9:
+    #             mode_9(sess, graph, save_path=os.path.join(
+    #                 COLLECT_PATH, 'mode_9/'))
 
 
 if __name__ == '__main__':

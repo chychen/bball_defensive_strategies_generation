@@ -650,8 +650,8 @@ def mode_9(sess, graph, save_path, is_valid=FLAGS.is_valid):
     # DataFactory
     data_factory = DataFactory(real_data)
     # target data
-    target_data = np.load('../../data/FixedFPS5.npy')[:10000:100]
-    target_length = np.load('../../data/FixedFPS5Length.npy')[:10000:100]
+    target_data = np.load('../../data/FixedFPS5.npy')[-100:]
+    target_length = np.load('../../data/FixedFPS5Length.npy')[-100:]
     print('target_data.shape', target_data.shape)
     team_AB = np.concatenate(
         [
