@@ -238,9 +238,10 @@ class C_MODEL(object):
                 vec_ball_2_basket, ord='euclidean', axis=-1)
 
             theta = tf.acos(b2teamB_dot_b2basket /
-                            (dist_ball_2_teamB * dist_ball_2_basket+1e-3))  # avoid nan
+                            (dist_ball_2_teamB * dist_ball_2_basket+1e-3))
             open_shot_score_all = (theta + 1.0) * (dist_ball_2_teamB + 1.0)
 
+            # add
             # one_sub_cosine = 1 - b2teamB_dot_b2basket / \
             #     (dist_ball_2_teamB * dist_ball_2_basket)
             # open_shot_score_all = one_sub_cosine + dist_ball_2_teamB
@@ -248,11 +249,21 @@ class C_MODEL(object):
             open_shot_score_min = tf.reduce_min(
                 open_shot_score_all, axis=-1)
             open_shot_score = tf.reduce_mean(open_shot_score_min)
+
+            # too close penalty
+            too_close_penalty = 0.0
+            for i in range(5):
+                vec = tf.subtract(teamB_pos[:, :, i:i+1], teamB_pos)
+                dist = tf.sqrt((vec[:, :, :, 0]+1e-8)**2 + (vec[:, :, :, 1]+1e-8)**2)
+                too_close_penalty -= tf.reduce_mean(dist)
+
         if if_log:
             with tf.name_scope(log_scope_name):
                 tf.summary.scalar('open_shot_score',
                                   open_shot_score, collections=['G'])
-        return open_shot_score
+                tf.summary.scalar('too_close_penalty',
+                                  too_close_penalty, collections=['G'])
+        return open_shot_score + too_close_penalty
 
     def __loss_fn(self, real_data, G_sample, fake_scores, real_scores, penalty_lambda):
         """ Critic loss
