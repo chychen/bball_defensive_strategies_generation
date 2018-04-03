@@ -763,8 +763,9 @@ def main(_):
                 mode_8(sess, graph, save_path=os.path.join(
                     COLLECT_PATH, 'mode_8/'))
             elif FLAGS.mode == 9:
+                _, iterations = str(FLAGS.restore_path).split('-')
                 mode_9(sess, graph, save_path=os.path.join(
-                    COLLECT_PATH, 'mode_9/'))
+                    COLLECT_PATH, 'mode_9/', iterations))
 
 
 if __name__ == '__main__':
