@@ -1,6 +1,6 @@
-# Basketbal Defensive Strategy Generation
+# Generating Defensive Plays in Basketball Games
 
-[[Arxiv]]()
+[Paper Accepted by ACMMM 2018](https://dl.acm.org/doi/10.1145/3240508.3240670)
 
 ## Architechture
 ![](https://lh6.googleusercontent.com/dkqUgCKY5tZ-wL5eujfFVcSs6jDpb_ACROMPLquDNZVwbs2Q5nUaVcRUU24)
@@ -28,7 +28,7 @@ For example:
 - Clone this repo:
 
 ```bash
-git clone git@http://CGVLab:30000/nba/script_generation.git
+git clone https://github.com/chychen/bball_defensive_strategies_generation
 cd script_generation
 ```
 
@@ -100,4 +100,12 @@ Dataset comes from STATS SportVU NBA 2015-2016, containing players (x,y) and bal
 
 ## Citation
 
-- After Submission
+```
+@inproceedings{chen2018generating,
+  title={Generating Defensive Plays in Basketball Games},
+  author={Chen, Chieh-Yu and Lai, Wenze and Hsieh, Hsin-Ying and Zheng, Wen-Hao and Wang, Yu-Shuen and Chuang, Jung-Hong},
+  booktitle={Proceedings of the 26th ACM international conference on Multimedia},
+  pages={1580--1588},
+  year={2018}
+}
+```
