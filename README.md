@@ -34,10 +34,7 @@ cd script_generation
 
 - Download the dataset. (You should put dataset right under the folder "{repo_path}/script_generation/data/")
 
-```bash
-cd data
-wget http://140.113.210.14:6006/NBA/data/FEATURES-4.npy
-```
+google drive link: https://drive.google.com/file/d/1drGHwrCT1Fd-sVReimGD1SmGT10rxkw9/view?usp=sharing
 
 ## Training
 
